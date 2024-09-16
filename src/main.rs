@@ -1,28 +1,33 @@
-use blrs::{config::BLRSConfig, search::query::VersionSearchQuery};
+use std::io::Write;
+
+use ansi_term::Color;
+use blrs::config::{BLRSConfig, PROJECT_DIRS};
 use clap::{CommandFactory, Parser};
 
 use cli_args::Cli;
 use commands::Commands;
-use log::{debug, info};
+use log::debug;
 
 mod cli_args;
 mod commands;
+mod fetcher;
 
 fn main() -> Result<(), std::io::Error> {
-    env_logger::init();
+    #[cfg(target_os = "windows")]
+    let _ = ansi_term::enable_ansi_support();
+
+    env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
 
     let mut cli = Cli::parse();
 
-    debug!("{cli:?}");
-
-    let cfgfigment = BLRSConfig::default_figment();
+    let cfgfigment = BLRSConfig::default_figment(None);
     let mut cfg: BLRSConfig = cfgfigment.extract().unwrap();
-
     cli.apply_overrides(&mut cfg);
 
-    info!("{cfg:?}");
+    debug!("{cli:?}");
+    debug!("{cfg:?}");
 
-    match (&cli.name, &cli.commands) {
+    match (&cli.build_or_file, &cli.commands) {
         (None, None) => {
             return Cli::command().print_help();
         }
@@ -42,14 +47,37 @@ fn main() -> Result<(), std::io::Error> {
         (None, Some(_)) => {}
     }
 
-    if let Some(Commands::Launch {
-        query: Some(s),
-        commands: None,
-    }) = &cli.commands
-    {
-        println!["{:?}", VersionSearchQuery::from(s.clone())];
-    }
+    let r = cli.eval(&mut cfg);
 
-    // cli.commands
+    let should_save = match r {
+        Ok(b) => b,
+        Err(e) => {
+            println![
+                "\n{}\n    {}: {:?}\n    {:?}",
+                Color::Red.bold().paint("COMMAND EXECUTION ERROR:"),
+                Color::Blue.paint("Type"),
+                e.kind(),
+                e.get_ref()
+            ];
+            return Err(e);
+        }
+    };
+
+    if should_save {
+        let config_file = PROJECT_DIRS.config_local_dir().join("config.toml");
+
+        let mut file = std::fs::File::create(config_file)?;
+        let data = match toml::to_string_pretty(&cfg) {
+            Ok(d) => d,
+            Err(e) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!["Failed to save config data: {:?}", e],
+                ))
+            }
+        };
+        file.write_all(data.as_bytes())?;
+    };
+
     Ok(())
 }

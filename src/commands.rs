@@ -5,17 +5,32 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
 pub enum Commands {
-    /// Fetches the latest builds from the Blender repositories
+    /// Fetches the latest builds from the Blender repositories. Does not download any build.
     Fetch {
+        /// Overrides the api that is used to fetch the builds.
+        #[arg(short, long)]
+        api_base: Option<String>,
+
         /// Ignore fetch timeouts.
         #[arg(short, long)]
         force: bool,
     },
-    /// lists all downloaded builds
+    /// Download a build from the saved database
+    Pull {
+        /// The version matcher to find the correct build.
+        query: String,
+    },
+
+    /// Lists builds available to download and builds that are installed
     Ls {
         #[arg(short, long)]
         format: Option<LsFormat>,
+
+        /// Filter out only builds that are installed.
+        #[arg(short, long)]
+        installed: bool,
     },
+    /// Launch a build
     Launch {
         /// The version match or blendfile to open.
         ///
@@ -28,6 +43,8 @@ pub enum Commands {
         #[command(subcommand)]
         commands: Option<LaunchCommands>,
     },
+    // /// Exports the config to a toml file. By default it saves to the default config location.
+    // ExportConfig { path: Option<PathBuf> },s
 }
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
