@@ -7,10 +7,6 @@ use serde::{Deserialize, Serialize};
 pub enum Commands {
     /// Fetches the latest builds from the Blender repositories. Does not download any build.
     Fetch {
-        /// Overrides the api that is used to fetch the builds.
-        #[arg(short, long)]
-        api_base: Option<String>,
-
         /// Ignore fetch timeouts.
         #[arg(short, long)]
         force: bool,

@@ -1,47 +1,65 @@
+use std::path::PathBuf;
+
 use async_std::io::WriteExt;
 use blrs::{
-    fetching::from_builder::{default_url, fetch_builds_from_builder, FetchError},
+    fetching::{
+        build_repository::{fetch_repo, FetchError},
+        build_schemas::builder_schema::BlenderBuildSchema,
+    },
     BLRSConfig,
 };
 use chrono::Utc;
 use log::{debug, error, info};
-use reqwest::Url;
 
-/// Fetches from the builder's repo. Returns whether BLRS should be saved.
-pub async fn fetch(cfg: &mut BLRSConfig, url: Option<Url>) -> Result<bool, std::io::Error> {
-    let client = cfg.client_builder().build().map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::Unsupported,
-            "This client is not supported",
-        )
-    })?;
-    let url = url.unwrap_or(default_url());
+/// Fetches from the builder's repo. If Ok(()) is returned, make sure to update the last time checked in the config.
+pub async fn fetch(cfg: &mut BLRSConfig) -> Vec<Result<bool, std::io::Error>> {
+    let repos_folder = &cfg.paths.remote_repos.clone();
+    // Ensure the repos folder exists
+    std::fs::create_dir_all(repos_folder);
 
-    debug!["Using client {:?}", client];
-    info!["Sending request to \"{}\"...", url];
+    let mut results = Vec::with_capacity(cfg.repos.len());
+    for repo in &cfg.repos.clone() {
+        let url = repo.url();
+        let client = cfg
+            .client_builder(url.domain().is_some_and(|h| h.contains("api.github.com")))
+            .build()
+            .unwrap();
 
-    let r = fetch_builds_from_builder(client, url.clone()).await;
+        let r = fetch_repo(client, repo.clone()).await;
 
+        let filename = repos_folder.join(repo.repo_id.clone() + ".json");
+
+        info!["Fetching from {}", url];
+
+        results.push(_process_result(filename, r).await);
+    }
+
+    if results.iter().any(|r| r.as_ref().is_ok_and(|b| *b)) {
+        // Update the last time checked in the config
+        let now = Utc::now();
+        cfg.last_time_checked = Some(now);
+    }
+
+    results
+}
+
+async fn _process_result(
+    filename: PathBuf,
+    r: Result<Vec<BlenderBuildSchema>, FetchError>,
+) -> Result<bool, std::io::Error> {
     match r {
         Ok(builds) => {
             info!["Successfully downloaded builds"];
 
             debug!["Saving builds to database..."];
-            let repos_folder = &cfg.paths.remote_repos;
-            // Ensure the repos folder exists
-            std::fs::create_dir_all(repos_folder)?;
+
             {
-                let filepath = repos_folder.join(url.domain().unwrap().to_string() + ".json");
-                let mut file = async_std::fs::File::create(&filepath).await?;
+                let mut file = async_std::fs::File::create(&filename).await?;
 
                 let data = serde_json::to_string(&builds).unwrap();
                 file.write_all(data.as_bytes()).await?;
-                info!["Saved cache to {}", filepath.to_str().unwrap()];
+                info!["Saved cache to {}", filename.to_str().unwrap()];
             }
-
-            // Update the last time checked in the config
-            let now = Utc::now();
-            cfg.last_time_checked = Some(now);
 
             Ok(true)
         }
