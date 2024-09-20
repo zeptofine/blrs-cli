@@ -8,16 +8,17 @@ use blrs::{
     },
     BLRSConfig,
 };
-use chrono::Utc;
 use log::{debug, error, info};
 
+use crate::tasks::ConfigTask;
+
 /// Fetches from the builder's repo. If Ok(()) is returned, make sure to update the last time checked in the config.
-pub async fn fetch(cfg: &mut BLRSConfig) -> Vec<Result<bool, std::io::Error>> {
+pub async fn fetch(cfg: &BLRSConfig, ignore_errors: bool) -> Result<ConfigTask, std::io::Error> {
     let repos_folder = &cfg.paths.remote_repos.clone();
     // Ensure the repos folder exists
-    std::fs::create_dir_all(repos_folder);
+    let _ = std::fs::create_dir_all(repos_folder);
 
-    let mut results = Vec::with_capacity(cfg.repos.len());
+    let mut result = Ok(ConfigTask::UpdateLastTimeChecked);
     for repo in &cfg.repos.clone() {
         let url = repo.url();
         let client = cfg
@@ -31,25 +32,26 @@ pub async fn fetch(cfg: &mut BLRSConfig) -> Vec<Result<bool, std::io::Error>> {
 
         info!["Fetching from {}", url];
 
-        results.push(_process_result(filename, r).await);
+        let r = _process_result(filename, r).await;
+
+        if r.is_err() {
+            result = Err(r.unwrap_err());
+            if !ignore_errors {
+                break;
+            }
+        }
     }
 
-    if results.iter().any(|r| r.as_ref().is_ok_and(|b| *b)) {
-        // Update the last time checked in the config
-        let now = Utc::now();
-        cfg.last_time_checked = Some(now);
-    }
-
-    results
+    result
 }
 
 async fn _process_result(
     filename: PathBuf,
     r: Result<Vec<BlenderBuildSchema>, FetchError>,
-) -> Result<bool, std::io::Error> {
+) -> Result<(), std::io::Error> {
     match r {
         Ok(builds) => {
-            info!["Successfully downloaded builds"];
+            info!["Successfully downloaded build lists"];
 
             debug!["Saving builds to database..."];
 
@@ -61,7 +63,7 @@ async fn _process_result(
                 info!["Saved cache to {}", filename.to_str().unwrap()];
             }
 
-            Ok(true)
+            Ok(())
         }
         Err(e) => {
             error!["Failed fetching from builder: {:?}", e];

@@ -2,6 +2,7 @@ use std::io::Write;
 
 use ansi_term::Color;
 use blrs::config::{BLRSConfig, PROJECT_DIRS};
+use chrono::Utc;
 use clap::{CommandFactory, Parser};
 
 use cli_args::Cli;
@@ -11,6 +12,9 @@ use log::debug;
 mod cli_args;
 mod commands;
 mod fetcher;
+mod ls;
+mod tasks;
+mod verify;
 
 fn main() -> Result<(), std::io::Error> {
     #[cfg(target_os = "windows")]
@@ -47,9 +51,9 @@ fn main() -> Result<(), std::io::Error> {
         (None, Some(_)) => {}
     }
 
-    let r = cli.eval(&mut cfg);
+    let r = cli.eval(&cfg);
 
-    let should_save = match r {
+    let tasks = match r {
         Ok(b) => b,
         Err(e) => {
             println![
@@ -63,7 +67,21 @@ fn main() -> Result<(), std::io::Error> {
         }
     };
 
-    if should_save {
+    let tasks_exist = !tasks.is_empty();
+    for task in tasks {
+        match task {
+            tasks::ConfigTask::UpdateGHAuth(github_authentication) => {
+                cfg.gh_auth = Some(github_authentication);
+            }
+            tasks::ConfigTask::UpdateLastTimeChecked => {
+                let dt = Utc::now();
+                cfg.last_time_checked = Some(dt);
+            }
+        }
+    }
+
+    if tasks_exist {
+        // Save the configuration to a file
         let config_file = PROJECT_DIRS.config_local_dir().join("config.toml");
 
         let mut file = std::fs::File::create(config_file)?;
@@ -77,7 +95,7 @@ fn main() -> Result<(), std::io::Error> {
             }
         };
         file.write_all(data.as_bytes())?;
-    };
+    }
 
     Ok(())
 }

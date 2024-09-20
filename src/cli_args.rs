@@ -1,11 +1,15 @@
 use std::path::PathBuf;
 
-use blrs::config::{BLRSConfig, FETCH_INTERVAL};
+use blrs::{
+    config::{BLRSConfig, FETCH_INTERVAL},
+    fetching::authentication::GithubAuthentication,
+    search::query::VersionSearchQuery,
+};
 use clap::{arg, Parser};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
-use crate::{commands::Commands, fetcher};
+use crate::{commands::Commands, fetcher, ls::list_builds, tasks::ConfigTask, verify};
 
 #[derive(Parser, Debug, Clone, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
@@ -29,9 +33,12 @@ impl Cli {
     }
 
     /// Ok(bool) is whether the BLRSConfig should be saved
-    pub fn eval(&self, cfg: &mut BLRSConfig) -> Result<bool, std::io::Error> {
+    pub fn eval(&self, cfg: &BLRSConfig) -> Result<Vec<ConfigTask>, std::io::Error> {
         match self.commands.clone().unwrap() {
-            Commands::Fetch { force } => {
+            Commands::Fetch {
+                force,
+                ignore_errors,
+            } => {
                 let checked_time = cfg.last_time_checked.unwrap_or_default();
                 let ready_time = checked_time + FETCH_INTERVAL;
                 // Check if we are past the time we should be able to check for new builds.
@@ -40,31 +47,53 @@ impl Cli {
                     debug!["We are ready to check for new builds. Initializing tokio"];
 
                     let rt = tokio::runtime::Runtime::new().unwrap();
-                    let results = rt.block_on(fetcher::fetch(cfg));
+                    let result = rt.block_on(fetcher::fetch(cfg, ignore_errors));
 
-                    if results.iter().all(|r| r.is_ok()) {
+                    if result.is_ok() {
                         info![
                             "{}",
-                            ansi_term::Color::Green.paint("Fetching builds finished successfully")
+                            ansi_term::Color::Green
+                                .bold()
+                                .paint("Fetching builds finished successfully")
                         ];
-                        Ok(true)
-                    } else {
-                        match results.first() {
-                            Some(Err(e)) => Err(std::io::Error::new(
-                                std::io::ErrorKind::Other,
-                                format!["Failed to fetch builds: {:?}", e],
-                            )),
-                            _ => Ok(false),
-                        }
                     }
+
+                    result.map(|v| vec![v])
                 } else {
                     Err(std::io::Error::new(std::io::ErrorKind::WouldBlock, "Insufficient time has passed since the last fetch. It is unlikely that new builds will be available, and to conserve requests these will be skipped."))
                 }
             }
-            Commands::Pull { query } => todo!(),
-            Commands::Ls { format, installed } => todo!(),
+            Commands::Verify { repos } => verify::verify(&cfg, repos),
+            Commands::Pull { query } => {
+                // parse the query into an actual query
+                let query = match VersionSearchQuery::try_from(query) {
+                    Ok(q) => q,
+                    Err(e) => {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidInput,
+                            "Failed to parse the query",
+                        ))
+                    }
+                };
+
+                todo!()
+            }
+            Commands::Ls {
+                format,
+                sort_by,
+                installed_only,
+            } => list_builds(
+                cfg,
+                format.unwrap_or_default(),
+                sort_by.unwrap_or_default(),
+                installed_only,
+            )
+            .map(|_| vec![]),
             Commands::Launch { query, commands } => todo!(),
-            // Commands::ExportConfig { path } => todo!(),
+            Commands::GithubAuth { user, token } => {
+                let auth = GithubAuthentication { user, token };
+                Ok(vec![ConfigTask::UpdateGHAuth(auth)])
+            }
         }
     }
 }
