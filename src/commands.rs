@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Subcommand;
 use serde::{Deserialize, Serialize};
 
-use crate::ls::{LsFormat, SortFormat};
+use crate::{ls::LsFormat, repo_formatting::SortFormat};
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
 pub enum Commands {
@@ -22,12 +22,34 @@ pub enum Commands {
 
     /// Verifies that all the builds available to blrs has the required information. If one does not,
     /// we will run the build and gather data from it to generate the information we need
-    Verify { repos: Option<Vec<String>> },
+    Verify {
+        /// Whether to verify it in interactive mode. In thi
+        /// s mode, you can fix unverifiable build
+        /// manually by filling in the necessary information
+        #[arg(short, long)]
+        i: bool,
+        repos: Option<Vec<String>>,
+    },
 
     /// Download a build from the saved database
     Pull {
-        /// The version matcher to find the correct build.
+        /// The version matchers to find the correct build.
+        queries: Vec<String>,
+
+        #[arg(short, long)]
+        all_platforms: bool,
+    },
+
+    /// Tries to send a specified build to the trash.
+    Rm {
         query: String,
+
+        #[command(subcommand)]
+        commands: Option<RmCommands>,
+
+        /// Tries to fully delete a file, and does not send the file to the trash
+        #[arg(short, long)]
+        no_trash: bool,
     },
 
     /// Lists builds available to download and builds that are installed
@@ -35,13 +57,22 @@ pub enum Commands {
         #[arg(short, long)]
         format: Option<LsFormat>,
 
-        #[arg(short, long)]
+        #[arg(long)]
         sort_by: Option<SortFormat>,
 
         /// Filter out only builds that are installed.
         #[arg(short, long)]
         installed_only: bool,
+
+        /// Show individual variants for remote builds.
+        #[arg(short, long)]
+        variants: bool,
+
+        /// Shows all builds, even if they are not for your target os. Our filtering is not perfect. this may be necessary for you to find the proper build.
+        #[arg(short, long)]
+        all_builds: bool,
     },
+
     /// Launch a build
     Launch {
         /// The version match or blendfile to open.
@@ -62,6 +93,12 @@ pub enum Commands {
     ///
     /// WARNING! This is not encrypted and is readily available in your config location.
     GithubAuth { user: String, token: String },
+}
+
+#[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
+pub enum RmCommands {
+    /// Remove a build with a specific hash
+    Hash { h: String },
 }
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]

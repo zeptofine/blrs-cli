@@ -9,12 +9,12 @@ use clap::{arg, Parser};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
-use crate::{commands::Commands, fetcher, ls::list_builds, tasks::ConfigTask, verify};
+use crate::{commands::Commands, fetcher, ls::list_builds, pull, tasks::ConfigTask, verify};
 
 #[derive(Parser, Debug, Clone, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
-    /// Alias of blrs-cli launch <file>.
+    /// Alias of blrs-cli launch.
     pub build_or_file: Option<String>,
 
     #[command(subcommand)]
@@ -63,30 +63,76 @@ impl Cli {
                     Err(std::io::Error::new(std::io::ErrorKind::WouldBlock, "Insufficient time has passed since the last fetch. It is unlikely that new builds will be available, and to conserve requests these will be skipped."))
                 }
             }
-            Commands::Verify { repos } => verify::verify(&cfg, repos),
-            Commands::Pull { query } => {
+            Commands::Verify { i, repos } => verify::verify(cfg, repos),
+            Commands::Pull {
+                queries,
+                all_platforms,
+            } => {
                 // parse the query into an actual query
-                let query = match VersionSearchQuery::try_from(query) {
-                    Ok(q) => q,
-                    Err(e) => {
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::InvalidInput,
-                            "Failed to parse the query",
-                        ))
-                    }
-                };
+                let queries: Vec<Result<_, _>> = queries
+                    .into_iter()
+                    .map(VersionSearchQuery::try_from)
+                    .collect();
 
-                todo!()
+                // Any of the queries failed to parse
+                if let Some(e) = queries.iter().find(|v| v.is_err()) {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        format!["Failed to parse the query: {:?}", e],
+                    ));
+                }
+                // The query list is empty
+                if queries.is_empty() {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "No query has been given. please specify a build to pull",
+                    ));
+                }
+
+                let queries: Vec<VersionSearchQuery> =
+                    queries.into_iter().map(|o| o.unwrap()).collect();
+
+                debug!["We are ready to download new builds. Initializing tokio"];
+
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_time()
+                    .enable_io()
+                    .build()
+                    .expect("failed to create runtime");
+
+                let result = rt.block_on(pull::pull_builds(cfg, queries, all_platforms));
+
+                match result {
+                    Ok(p) => {
+                        info![
+                            "{}",
+                            ansi_term::Color::Green
+                                .bold()
+                                .paint("Downloading builds finished successfully")
+                        ];
+                        Ok(vec![])
+                    }
+                    Err(e) => Err(e),
+                }
             }
+            Commands::Rm {
+                query,
+                commands,
+                no_trash,
+            } => todo!(),
             Commands::Ls {
                 format,
                 sort_by,
                 installed_only,
+                variants,
+                all_builds,
             } => list_builds(
                 cfg,
                 format.unwrap_or_default(),
                 sort_by.unwrap_or_default(),
                 installed_only,
+                variants,
+                all_builds,
             )
             .map(|_| vec![]),
             Commands::Launch { query, commands } => todo!(),

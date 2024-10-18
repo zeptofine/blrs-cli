@@ -13,6 +13,8 @@ mod cli_args;
 mod commands;
 mod fetcher;
 mod ls;
+mod pull;
+mod repo_formatting;
 mod tasks;
 mod verify;
 
@@ -57,12 +59,13 @@ fn main() -> Result<(), std::io::Error> {
         Ok(b) => b,
         Err(e) => {
             println![
-                "\n{}\n    {}: {:?}\n    {:?}",
+                "\n{}\n    {}: {:?}\n    {}",
                 Color::Red.bold().paint("COMMAND EXECUTION ERROR:"),
                 Color::Blue.paint("Type"),
                 e.kind(),
-                e.get_ref()
+                e.get_ref().unwrap()
             ];
+            println![];
             return Err(e);
         }
     };

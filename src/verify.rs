@@ -1,9 +1,14 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use blrs::{info::launching::OSLaunchTarget, BLRSConfig, LocalBuild};
 use log::{debug, error, info};
 
 use crate::tasks::ConfigTask;
+
+#[inline]
+fn is_dir_or_link_to_dir(p: &Path) -> bool {
+    p.is_dir() || p.read_link().is_ok_and(|p| p.is_dir())
+}
 
 pub fn verify(
     cfg: &BLRSConfig,
@@ -36,10 +41,7 @@ pub fn verify(
             .filter_map(|build_folder| {
                 let build_folder = build_folder.ok()?;
                 let path = build_folder.path();
-                let file_type = build_folder.file_type().ok()?;
-                if file_type.is_dir()
-                    | (file_type.is_symlink() && path.read_link().ok()?.is_dir())
-                {
+                if is_dir_or_link_to_dir(&build_folder.path()){
 
                     match LocalBuild::read(&path) {
                         Ok(build) => {
@@ -50,7 +52,6 @@ pub fn verify(
                         Err(e) => {
                             error!["Failed to read build: {:?}\n Attempting to read the build for more info", e];
                             let executable = path.join(OSLaunchTarget::try_default().unwrap().exe_name());
-                             
                             match LocalBuild::generate_from_exe(&executable) {
                                 Ok(b) => {
                                     debug!["{:?}", b];
