@@ -85,7 +85,15 @@ fn main() -> Result<(), std::io::Error> {
 
     if tasks_exist {
         // Save the configuration to a file
+
         let config_file = PROJECT_DIRS.config_local_dir().join("config.toml");
+
+        std::fs::create_dir_all(PROJECT_DIRS.config_local_dir()).map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!["Failed to save config data: {:?}", e],
+            )
+        })?;
 
         let mut file = std::fs::File::create(config_file)?;
         let data = match toml::to_string_pretty(&cfg) {
