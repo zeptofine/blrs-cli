@@ -11,7 +11,6 @@ use blrs::{
     search::{query::VersionSearchQuery, searching::BInfoMatcher},
     BLRSConfig, BasicBuildInfo, RemoteBuild,
 };
-use flate2::read::{GzDecoder, ZlibDecoder};
 use futures::AsyncWriteExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
 use inquire::InquireError;
@@ -23,9 +22,16 @@ use uuid::Uuid;
 use xz::read::XzDecoder;
 
 #[derive(Debug)]
+pub enum PullFailureLocation {
+    Downloading,
+    Extraction,
+    InfoGeneration,
+}
+#[derive(Debug)]
 pub enum PullFailure {
-    FailedToCreate,
+    FailedToCreate(PathBuf),
     FailedToWrite,
+    UnsupportedFormat,
     FailedToClose,
     FailedToRename,
     ReturnCode(StatusCode, Option<&'static str>),
@@ -82,10 +88,24 @@ pub async fn pull_builds(
             }
         }
 
-        if full_size != m.len() {
-            warn!["There are duplicate builds; presumably from different repos!"];
-            m.shrink_to_fit();
+        // Filter out build variants that do not coencide with self
+        if !all_platforms {
+            let target = get_target_setup().unwrap();
+
+            let h: HashMap<_, _> = m
+                .into_iter()
+                .filter_map(|(key, (variants, repos))| {
+                    let filtered = variants.filter_target(target);
+                    match filtered.v.len() {
+                        0 => None,
+                        _ => Some((key, (filtered, repos))),
+                    }
+                })
+                .collect();
+            m = h;
         }
+
+        m.shrink_to_fit();
 
         m
     };
@@ -144,9 +164,6 @@ pub async fn pull_builds(
                         .to_os_string()
                 });
 
-            println!["{filename:?}"];
-            println!["{:?}", repo];
-
             let repo_path = cfg.paths.path_to_repo(repo);
 
             let completed_filepath = repo_path.join(&filename);
@@ -156,10 +173,6 @@ pub async fn pull_builds(
 
             async move {
                 if !completed_filepath.exists() {
-                    println!["{:?}", temporary_filepath];
-                    println!["{:?}", completed_filepath];
-                    println!["{:?}", destination];
-
                     let client = cfg
                         .client_builder(url.domain().is_some_and(|h| h.contains("api.github.com")))
                         .build()
@@ -175,14 +188,21 @@ pub async fn pull_builds(
                         &temporary_filepath,
                         &completed_filepath,
                     )
-                    .await?;
+                    .await
+                    .map_err(|e| (PullFailureLocation::Downloading, e))?;
                 }
 
                 // Extract file
                 ppb.set_message("Extracting file");
-                extract_file(&ppb, &mut intv, &completed_filepath, &destination)
+                let success = extract_file(&ppb, &mut intv, &completed_filepath, &destination)
                     .await
-                    .map_err(|e| PullFailure::IoError(e))?;
+                    .map_err(|e| (PullFailureLocation::Extraction, PullFailure::IoError(e)))?;
+                if !success {
+                    return Err((
+                        PullFailureLocation::Extraction,
+                        PullFailure::UnsupportedFormat,
+                    ));
+                }
 
                 ppb.set_message("Generating the build info");
                 ppb.set_length(1);
@@ -198,7 +218,8 @@ pub async fn pull_builds(
                     },
                 };
 
-                lb.write().map_err(|e| PullFailure::IoError(e))?;
+                lb.write()
+                    .map_err(|e| (PullFailureLocation::InfoGeneration, PullFailure::IoError(e)))?;
 
                 ppb.set_position(0);
 
@@ -209,7 +230,8 @@ pub async fn pull_builds(
         })
         .collect();
 
-    let result: Vec<Result<(), PullFailure>> = futures::future::join_all(futures).await;
+    let result: Vec<Result<(), (PullFailureLocation, PullFailure)>> =
+        futures::future::join_all(futures).await;
 
     println!["{:?}", result];
 
@@ -319,7 +341,7 @@ fn resolve_variants(
                 .into_iter()
                 .map(|variant| (variant.to_string(), variant))
                 .collect();
-            println!["{:?}", map];
+
             let choices = map.keys().cloned().collect();
 
             let inquiry = inquire::Select::new(resolve_txt, choices).prompt();
@@ -340,9 +362,13 @@ async fn download_file(
     temporary_filepath: &Path,
     completed_filepath: &Path,
 ) -> Result<(), PullFailure> {
+    // Make sure the temporary filepath exists
+    std::fs::create_dir_all(&temporary_filepath.parent().unwrap())
+        .map_err(|e| PullFailure::IoError(e))?;
+
     let mut file = async_std::fs::File::create(&temporary_filepath)
         .await
-        .map_err(|_| PullFailure::FailedToCreate)?;
+        .map_err(|_| PullFailure::FailedToCreate(temporary_filepath.into()))?;
 
     let mut state = FetchStreamerState::new(client, url);
 
@@ -410,7 +436,7 @@ async fn extract_file<P>(
     intv: &mut Interval,
     filepath: P,
     destination: P,
-) -> std::io::Result<()>
+) -> std::io::Result<bool>
 where
     P: AsRef<Path>,
 {
@@ -440,6 +466,7 @@ where
                                 .skip(1)
                                 .collect::<PathBuf>(),
                         );
+                        println!["{:?}", pth];
                         async_std::fs::create_dir_all(pth.parent().unwrap()).await?;
                         entry.unpack(pth)?;
 
@@ -450,8 +477,8 @@ where
                 }
             }
 
-            Ok(())
+            Ok(true)
         }
-        _ => Ok(()),
+        _ => Ok(false),
     }
 }
