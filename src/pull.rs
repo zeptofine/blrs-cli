@@ -466,7 +466,7 @@ where
                                 .skip(1)
                                 .collect::<PathBuf>(),
                         );
-                        println!["{:?}", pth];
+
                         async_std::fs::create_dir_all(pth.parent().unwrap()).await?;
                         entry.unpack(pth)?;
 
