@@ -5,12 +5,14 @@ use blrs::{
     fetching::authentication::GithubAuthentication,
     search::query::VersionSearchQuery,
 };
+use chrono::Utc;
 use clap::{arg, Parser};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     commands::{Command, RunCommand},
+    errs::{CommandError, IoErrorOrigin},
     fetcher,
     ls::list_builds,
     pull,
@@ -39,7 +41,7 @@ impl Cli {
         }
     }
 
-    pub fn eval(self, cfg: &BLRSConfig) -> Result<Vec<ConfigTask>, std::io::Error> {
+    pub fn eval(self, cfg: &BLRSConfig) -> Result<Vec<ConfigTask>, CommandError> {
         match self.commands.unwrap() {
             Command::Fetch {
                 force,
@@ -49,6 +51,7 @@ impl Cli {
                 let ready_time = checked_time + FETCH_INTERVAL;
                 // Check if we are past the time we should be able to check for new builds.
                 let ready_to_check = ready_time < chrono::Utc::now();
+
                 if ready_to_check | force {
                     debug!["We are ready to check for new builds. Initializing tokio"];
 
@@ -64,9 +67,14 @@ impl Cli {
                         ];
                     }
 
-                    result.map(|v| vec![v])
+                    result
+                        .map(|v| vec![v])
+                        .map_err(|e| CommandError::IoError(IoErrorOrigin::Fetching, e))
                 } else {
-                    Err(std::io::Error::new(std::io::ErrorKind::WouldBlock, "Insufficient time has passed since the last fetch. It is unlikely that new builds will be available, and to conserve requests these will be skipped."))
+                    let time_remaining = ready_time - Utc::now();
+                    Err(CommandError::FetchingTooFast {
+                        remaining: time_remaining,
+                    })
                 }
             }
             Command::Verify { i, repos } => verify::verify(cfg, repos).map(|_| vec![]),
@@ -84,18 +92,12 @@ impl Cli {
                     .collect();
 
                 // Any of the queries failed to parse
-                if let Some((s, e)) = queries.iter().find(|(_, v)| v.is_err()) {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        format!["Failed to parse the query {}: {:?}", s, e],
-                    ));
+                if let Some((s, Err(e))) = queries.iter().find(|(_, v)| v.is_err()) {
+                    return Err(CommandError::CouldNotParseQuery(s.clone()));
                 }
                 // The query list is empty
                 if queries.is_empty() {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "No query has been given. please specify a build to pull",
-                    ));
+                    return Err(CommandError::MissingQuery);
                 }
 
                 let queries: Vec<VersionSearchQuery> =
@@ -152,24 +154,14 @@ impl Cli {
                             open_last: false,
                         });
                     } else {
-                        match PathBuf::try_from(&q) {
-                            Ok(pth) => command = Some(RunCommand::File { path: pth }),
-                            Err(_) => {
-                                return Err(std::io::Error::new(
-                                    std::io::ErrorKind::InvalidInput,
-                                    format!["Query {:?} could not be parsed as ", q]
-                                        + " a VersionSearchQuery or a filepath",
-                                ))
-                            }
-                        }
+                        command = Some(RunCommand::File {
+                            path: PathBuf::from(q),
+                        });
                     }
                 }
 
                 if command.is_none() {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "No run command has been specified, see --help for details",
-                    ));
+                    return Err(CommandError::NotEnoughInput);
                 }
 
                 println!["{:?}", command];

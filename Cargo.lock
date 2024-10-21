@@ -362,6 +362,7 @@ dependencies = [
  "serde_json",
  "tar",
  "termtree",
+ "thiserror",
  "tokio",
  "toml",
  "uuid",

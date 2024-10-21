@@ -3,19 +3,19 @@ use std::path::{Path, PathBuf};
 use blrs::{info::launching::OSLaunchTarget, BLRSConfig, LocalBuild};
 use log::{debug, error, info};
 
-use crate::tasks::ConfigTask;
+use crate::errs::{error_reading, CommandError};
 
 #[inline]
 fn is_dir_or_link_to_dir(p: &Path) -> bool {
     p.is_dir() || p.read_link().is_ok_and(|p| p.is_dir())
 }
 
-pub fn verify(cfg: &BLRSConfig, repos: Option<Vec<String>>) -> Result<(), std::io::Error> {
+pub fn verify(cfg: &BLRSConfig, repos: Option<Vec<String>>) -> Result<(), CommandError> {
     let mut folders: Vec<PathBuf> = cfg
         .paths
         .library
         .read_dir()
-        .inspect_err(|e| error!["Failed to read {:?}: {}", cfg.paths.library, e])?
+        .map_err(|e| error_reading(cfg.paths.library.clone(), e))?
         .filter_map(|item| {
             let item = item.ok()?;
             item.file_type().ok()?.is_dir().then(|| item.path())
@@ -34,7 +34,7 @@ pub fn verify(cfg: &BLRSConfig, repos: Option<Vec<String>>) -> Result<(), std::i
 
     for folder in folders {
         let _: Vec<_> = folder
-            .read_dir()?
+            .read_dir().map_err(|e| error_reading(folder, e))?
             .filter_map(|build_folder| {
                 let build_folder = build_folder.ok()?;
                 let path = build_folder.path();

@@ -11,6 +11,7 @@ use log::debug;
 
 mod cli_args;
 mod commands;
+mod errs;
 mod fetcher;
 mod ls;
 mod pull;
@@ -60,14 +61,12 @@ fn main() -> Result<(), std::io::Error> {
         Ok(b) => b,
         Err(e) => {
             println![
-                "\n{}\n    {}: {:?}\n    {}",
+                "\n{}\n    {}",
                 Color::Red.bold().paint("COMMAND EXECUTION ERROR:"),
-                Color::Blue.paint("Type"),
-                e.kind(),
-                e.get_ref().unwrap()
+                e
             ];
             println![];
-            return Err(e);
+            std::process::exit(e.exit_code());
         }
     };
 

@@ -7,7 +7,10 @@ use clap::ValueEnum;
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
 
-use crate::repo_formatting::{RepoEntryTreeConstructor, SortFormat};
+use crate::{
+    errs::{error_writing, CommandError, IoErrorOrigin},
+    repo_formatting::{RepoEntryTreeConstructor, SortFormat},
+};
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum, Serialize, Deserialize)]
 pub enum LsFormat {
@@ -59,11 +62,13 @@ pub fn list_builds(
     installed_only: bool,
     show_variants: bool,
     all_builds: bool,
-) -> std::io::Result<()> {
+) -> Result<(), CommandError> {
     std::fs::create_dir_all(&cfg.paths.library)
-        .inspect_err(|e| error!("Failed to create library path: {:?}", e))?;
+        .inspect_err(|e| error!("Failed to create library path: {:?}", e))
+        .map_err(|e| error_writing(cfg.paths.library.clone(), e))?;
 
-    let all_repos = gather_and_filter_repos(cfg, installed_only, all_builds, Some(sort_format))?;
+    let all_repos = gather_and_filter_repos(cfg, installed_only, all_builds, Some(sort_format))
+        .map_err(|e| CommandError::IoError(IoErrorOrigin::ReadingRepos, e))?;
 
     match ls_format {
         LsFormat::Tree => all_repos.into_iter().for_each(|repo_entry| {

@@ -15,39 +15,25 @@ use futures::AsyncWriteExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
 use inquire::InquireError;
 use log::{debug, error, info, warn};
-use reqwest::{Client, StatusCode, Url};
+use reqwest::{Client, Url};
 use tar::Archive;
 use tokio::time::{interval, Interval};
 use uuid::Uuid;
 use xz::read::XzDecoder;
 
-#[derive(Debug)]
-pub enum PullFailureLocation {
-    Downloading,
-    Extraction,
-    InfoGeneration,
-}
-#[derive(Debug)]
-pub enum PullFailure {
-    FailedToCreate(PathBuf),
-    FailedToWrite,
-    UnsupportedFormat,
-    FailedToClose,
-    FailedToRename,
-    ReturnCode(StatusCode, Option<&'static str>),
-    ReqwestError(reqwest::Error),
-    IoError(std::io::Error),
-}
+use crate::errs::{error_renaming, error_writing, CommandError, IoErrorOrigin};
 
 pub async fn pull_builds(
     cfg: &BLRSConfig,
     queries: Vec<VersionSearchQuery>,
     all_platforms: bool,
-) -> std::io::Result<PathBuf> {
+) -> Result<PathBuf, CommandError> {
     std::fs::create_dir_all(&cfg.paths.library)
-        .inspect_err(|e| error!("Failed to create library path: {:?}", e))?;
+        .inspect_err(|e| error!("Failed to create library path: {:?}", e))
+        .map_err(|e| error_writing(cfg.paths.library.clone(), e))?;
 
-    let repos: Vec<_> = read_repos(cfg.repos.clone(), &cfg.paths, false)?
+    let repos: Vec<_> = read_repos(cfg.repos.clone(), &cfg.paths, false)
+        .map_err(|e| CommandError::IoError(IoErrorOrigin::ReadingRepos, e))?
         .into_iter()
         .filter_map(|r| match r {
             RepoEntry::Registered(repo, vec) => Some((
@@ -121,10 +107,7 @@ pub async fn pull_builds(
         .filter_map(|(q, v)| v.is_empty().then_some(format!["{q}"]))
         .collect();
     if !empty_matches.is_empty() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!["No matches for the queries: {}", empty_matches.join(", ")],
-        ));
+        return Err(CommandError::QueryResultEmpty(empty_matches.join(", ")));
     }
 
     // Check if any of the queries had multiple matches. If so, perform conflict resolution
@@ -188,19 +171,22 @@ pub async fn pull_builds(
                         &temporary_filepath,
                         &completed_filepath,
                     )
-                    .await
-                    .map_err(|e| (PullFailureLocation::Downloading, e))?;
+                    .await?;
                 }
 
                 // Extract file
                 ppb.set_message(format!["Extracting file {}", completed_filepath.display()]);
                 let success = extract_file(&ppb, &mut intv, &completed_filepath, &destination)
                     .await
-                    .map_err(|e| (PullFailureLocation::Extraction, PullFailure::IoError(e)))?;
+                    .map_err(|e| error_writing(destination.clone(), e))?;
                 if !success {
-                    return Err((
-                        PullFailureLocation::Extraction,
-                        PullFailure::UnsupportedFormat,
+                    return Err(CommandError::UnsupportedFileFormat(
+                        completed_filepath
+                            .extension()
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .into(),
                     ));
                 }
 
@@ -208,7 +194,7 @@ pub async fn pull_builds(
                 ppb.set_length(1);
 
                 let lb = LocalBuild {
-                    folder: destination,
+                    folder: destination.clone(),
                     info: LocalBuildInfo {
                         basic: remote_build.basic,
                         is_favorited: false,
@@ -218,8 +204,7 @@ pub async fn pull_builds(
                     },
                 };
 
-                lb.write()
-                    .map_err(|e| (PullFailureLocation::InfoGeneration, PullFailure::IoError(e)))?;
+                lb.write().map_err(|e| error_writing(destination, e))?;
 
                 ppb.set_position(0);
 
@@ -230,8 +215,10 @@ pub async fn pull_builds(
         })
         .collect();
 
-    let result: Vec<Result<(), (PullFailureLocation, PullFailure)>> =
-        futures::future::join_all(futures).await;
+    let result: Vec<Result<(), CommandError>> = futures::future::join_all(futures)
+        .await
+        .into_iter()
+        .collect();
 
     println!["{:?}", result];
 
@@ -361,13 +348,14 @@ async fn download_file(
     url: Url,
     temporary_filepath: &Path,
     completed_filepath: &Path,
-) -> Result<(), PullFailure> {
+) -> Result<(), CommandError> {
     // Make sure the temporary filepath exists
-    std::fs::create_dir_all(temporary_filepath.parent().unwrap()).map_err(PullFailure::IoError)?;
+    std::fs::create_dir_all(temporary_filepath.parent().unwrap())
+        .map_err(|e| error_writing(temporary_filepath.parent().unwrap().into(), e))?;
 
     let mut file = async_std::fs::File::create(&temporary_filepath)
         .await
-        .map_err(|_| PullFailure::FailedToCreate(temporary_filepath.into()))?;
+        .map_err(|e| error_writing(temporary_filepath.into(), e))?;
 
     let mut state = FetchStreamerState::new(client, url);
 
@@ -394,23 +382,26 @@ async fn download_file(
 
                 file.write_all(last_chunk)
                     .await
-                    .map_err(|_| PullFailure::FailedToWrite)?;
+                    .map_err(|e| error_writing(temporary_filepath.into(), e))?;
                 intv.tick().await;
             }
             FetchStreamerState::Finished { response } => {
                 if !response.status().is_success() {
-                    return Err(PullFailure::ReturnCode(
-                        response.status(),
-                        response.status().canonical_reason(),
-                    ));
+                    return Err(CommandError::ReturnCode(response.status()));
                 }
 
-                file.flush().await.map_err(|_| PullFailure::FailedToWrite)?;
-                file.close().await.map_err(|_| PullFailure::FailedToClose)?;
+                file.flush()
+                    .await
+                    .map_err(|e| error_writing(temporary_filepath.into(), e))?;
+                file.close()
+                    .await
+                    .map_err(|e| error_writing(temporary_filepath.into(), e))?;
 
                 async_std::fs::rename(&temporary_filepath, &completed_filepath)
                     .await
-                    .map_err(|_| PullFailure::FailedToRename)?;
+                    .map_err(|e| {
+                        error_renaming(temporary_filepath.into(), completed_filepath.into(), e)
+                    })?;
 
                 intv.tick().await;
                 break;
@@ -424,7 +415,7 @@ async fn download_file(
 
     // Moved out of the loop to gain ownership of the error
     if let FetchStreamerState::Err(error) = state {
-        Err(PullFailure::ReqwestError(error))
+        Err(CommandError::ReqwestError(error))
     } else {
         Ok(())
     }
