@@ -16,6 +16,7 @@ mod fetcher;
 mod ls;
 mod pull;
 mod repo_formatting;
+mod resolving;
 mod run;
 mod tasks;
 mod verify;

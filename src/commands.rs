@@ -22,14 +22,7 @@ pub enum Command {
 
     /// Verifies that all the builds available to blrs has the required information. If one does not,
     /// we will run the build and gather data from it to generate the information we need
-    Verify {
-        /// Whether to verify it in interactive mode. In thi
-        /// s mode, you can fix unverifiable build
-        /// manually by filling in the necessary information
-        #[arg(short, long)]
-        i: bool,
-        repos: Option<Vec<String>>,
-    },
+    Verify { repos: Option<Vec<String>> },
 
     /// Download a build from the saved database
     Pull {

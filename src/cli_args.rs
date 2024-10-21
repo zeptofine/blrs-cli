@@ -77,7 +77,7 @@ impl Cli {
                     })
                 }
             }
-            Command::Verify { i, repos } => verify::verify(cfg, repos).map(|_| vec![]),
+            Command::Verify { repos } => verify::verify(cfg, repos).map(|_| vec![]),
             Command::Pull {
                 queries,
                 all_platforms,
@@ -93,7 +93,7 @@ impl Cli {
 
                 // Any of the queries failed to parse
                 if let Some((s, Err(e))) = queries.iter().find(|(_, v)| v.is_err()) {
-                    return Err(CommandError::CouldNotParseQuery(s.clone()));
+                    return Err(CommandError::CouldNotParseQuery(s.clone(), e.clone()));
                 }
                 // The query list is empty
                 if queries.is_empty() {
@@ -114,7 +114,7 @@ impl Cli {
                 let result = rt.block_on(pull::pull_builds(cfg, queries, all_platforms));
 
                 match result {
-                    Ok(p) => {
+                    Ok(_) => {
                         info![
                             "{}",
                             ansi_term::Color::Green

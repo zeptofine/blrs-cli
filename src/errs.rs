@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use blrs::search::query::FromError;
 use reqwest::StatusCode;
 use thiserror::Error;
 
@@ -16,10 +17,10 @@ pub enum IoErrorOrigin {
 #[derive(Error, Debug)]
 pub enum CommandError {
     #[error(
-        "Could not parse query {0:?}
+        "Could not parse query {0:?}: {1:?}
     Query syntax: <major_num>.<minor>.<patch>[-<branch>][[+ or #]<build_hash>][@<commit time>]"
     )]
-    CouldNotParseQuery(String),
+    CouldNotParseQuery(String, FromError),
     #[error("Not enough command input, see --help for details")]
     NotEnoughInput,
     #[error("No matches for Query(s) {0:?}")]
@@ -36,6 +37,9 @@ pub enum CommandError {
     #[error("Unsupported file format: {0:?}")]
     UnsupportedFileFormat(String),
 
+    #[error("Cancelled pre-emptively")]
+    Cancelled,
+
     #[error("IO Error from {0:?}:  {1:?}")]
     IoError(IoErrorOrigin, std::io::Error),
 }
@@ -43,7 +47,7 @@ pub enum CommandError {
 impl CommandError {
     pub fn exit_code(&self) -> i32 {
         match self {
-            CommandError::CouldNotParseQuery(_)
+            CommandError::CouldNotParseQuery(_, _)
             | CommandError::MissingQuery
             | CommandError::NotEnoughInput
             | CommandError::QueryResultEmpty(_)
@@ -52,6 +56,7 @@ impl CommandError {
             | CommandError::UnsupportedFileFormat(_)
             | CommandError::ReqwestError(_) => 1,
             CommandError::IoError(_, error) => error.raw_os_error().unwrap_or(1),
+            CommandError::Cancelled => 130,
         }
     }
 }
