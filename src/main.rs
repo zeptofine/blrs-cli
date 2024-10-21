@@ -6,7 +6,7 @@ use chrono::Utc;
 use clap::{CommandFactory, Parser};
 
 use cli_args::Cli;
-use commands::Commands;
+use commands::Command;
 use log::debug;
 
 mod cli_args;
@@ -15,6 +15,7 @@ mod fetcher;
 mod ls;
 mod pull;
 mod repo_formatting;
+mod run;
 mod tasks;
 mod verify;
 
@@ -45,9 +46,9 @@ fn main() -> Result<(), std::io::Error> {
             ));
         }
         (Some(query), None) => {
-            cli.commands = Some(Commands::Launch {
+            cli.commands = Some(Command::Run {
                 query: Some(query.to_string()),
-                commands: None,
+                command: None,
             });
         }
         (None, Some(_)) => {}

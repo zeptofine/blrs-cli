@@ -10,10 +10,7 @@ fn is_dir_or_link_to_dir(p: &Path) -> bool {
     p.is_dir() || p.read_link().is_ok_and(|p| p.is_dir())
 }
 
-pub fn verify(
-    cfg: &BLRSConfig,
-    repos: Option<Vec<String>>,
-) -> Result<Vec<ConfigTask>, std::io::Error> {
+pub fn verify(cfg: &BLRSConfig, repos: Option<Vec<String>>) -> Result<(), std::io::Error> {
     let mut folders: Vec<PathBuf> = cfg
         .paths
         .library
@@ -79,5 +76,5 @@ pub fn verify(
             .collect();
     }
 
-    Ok(vec![])
+    Ok(())
 }

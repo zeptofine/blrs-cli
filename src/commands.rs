@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::{ls::LsFormat, repo_formatting::SortFormat};
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
-pub enum Commands {
+pub enum Command {
     /// Fetches the latest builds from the Blender repositories. Does not download any build.
     Fetch {
         /// Ignore fetch timeouts.
@@ -74,17 +74,18 @@ pub enum Commands {
     },
 
     /// Launch a build
-    Launch {
+    Run {
         /// The version match or blendfile to open.
         ///
         /// Whether you intend it to be a version match or blendfile will be decided by
         /// checking if it is parseable as a valid version search query.
         /// If it is not, it is assumed you meant it to be a file.
-        /// There may be false positives in the matcher parser.
+        /// There may be false positives in the matcher parser if you name
+        /// your blendfiles wierdly.
         query: Option<String>,
 
         #[command(subcommand)]
-        commands: Option<LaunchCommands>,
+        command: Option<RunCommand>,
     },
 
     /// Saves authentication data for github.
@@ -102,13 +103,13 @@ pub enum RmCommands {
 }
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
-pub enum LaunchCommands {
+pub enum RunCommand {
     /// Open a specific file and assume the correct build
     File { path: PathBuf },
 
     /// Launch a specific build of blender
     Build {
-        query: String,
+        build_or_file: Option<String>,
 
         #[arg(short, long)]
         open_last: bool,

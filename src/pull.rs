@@ -111,8 +111,8 @@ pub async fn pull_builds(
     };
 
     let builds: Vec<BasicBuildInfo> = variant_map.keys().cloned().collect();
-    let matcher = BInfoMatcher::new(&builds);
 
+    let matcher = BInfoMatcher::new(&builds);
     let matches: Vec<_> = queries.iter().map(|q| (q, matcher.find_all(q))).collect();
 
     // Check if any of the queries have no matches
@@ -128,7 +128,7 @@ pub async fn pull_builds(
     }
 
     // Check if any of the queries had multiple matches. If so, perform conflict resolution
-    let queue = resolve_queue(matches, variant_map);
+    let queue = resolve_matches(matches, variant_map);
 
     // Check the queue variants
     let remote_builds = resolve_variants(queue, all_platforms);
@@ -141,7 +141,7 @@ pub async fn pull_builds(
         .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
             write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
         })
-        .progress_chars("#!_");
+        .progress_chars("#|-");
 
     let futures: Vec<_> = remote_builds
         .into_iter()
@@ -193,7 +193,7 @@ pub async fn pull_builds(
                 }
 
                 // Extract file
-                ppb.set_message("Extracting file");
+                ppb.set_message(format!["Extracting file {}", completed_filepath.display()]);
                 let success = extract_file(&ppb, &mut intv, &completed_filepath, &destination)
                     .await
                     .map_err(|e| (PullFailureLocation::Extraction, PullFailure::IoError(e)))?;
@@ -238,7 +238,7 @@ pub async fn pull_builds(
     Ok(PathBuf::default())
 }
 
-fn resolve_queue<'a>(
+pub fn resolve_matches<'a>(
     matches: Vec<(&VersionSearchQuery, Vec<&BasicBuildInfo>)>,
     mut variant_map: HashMap<BasicBuildInfo, (Variants<RemoteBuild>, Vec<&'a BuildRepo>)>,
 ) -> Vec<(Variants<RemoteBuild>, &'a BuildRepo)> {
@@ -363,8 +363,7 @@ async fn download_file(
     completed_filepath: &Path,
 ) -> Result<(), PullFailure> {
     // Make sure the temporary filepath exists
-    std::fs::create_dir_all(&temporary_filepath.parent().unwrap())
-        .map_err(|e| PullFailure::IoError(e))?;
+    std::fs::create_dir_all(temporary_filepath.parent().unwrap()).map_err(PullFailure::IoError)?;
 
     let mut file = async_std::fs::File::create(&temporary_filepath)
         .await

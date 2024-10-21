@@ -9,7 +9,14 @@ use clap::{arg, Parser};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
-use crate::{commands::Commands, fetcher, ls::list_builds, pull, tasks::ConfigTask, verify};
+use crate::{
+    commands::{Command, RunCommand},
+    fetcher,
+    ls::list_builds,
+    pull,
+    tasks::ConfigTask,
+    verify,
+};
 
 #[derive(Parser, Debug, Clone, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
@@ -18,7 +25,7 @@ pub struct Cli {
     pub build_or_file: Option<String>,
 
     #[command(subcommand)]
-    pub commands: Option<Commands>,
+    pub commands: Option<Command>,
 
     /// Override the path to the library.
     #[arg(short, long)]
@@ -32,10 +39,9 @@ impl Cli {
         }
     }
 
-    /// Ok(bool) is whether the BLRSConfig should be saved
-    pub fn eval(&self, cfg: &BLRSConfig) -> Result<Vec<ConfigTask>, std::io::Error> {
-        match self.commands.clone().unwrap() {
-            Commands::Fetch {
+    pub fn eval(self, cfg: &BLRSConfig) -> Result<Vec<ConfigTask>, std::io::Error> {
+        match self.commands.unwrap() {
+            Command::Fetch {
                 force,
                 ignore_errors,
             } => {
@@ -63,22 +69,25 @@ impl Cli {
                     Err(std::io::Error::new(std::io::ErrorKind::WouldBlock, "Insufficient time has passed since the last fetch. It is unlikely that new builds will be available, and to conserve requests these will be skipped."))
                 }
             }
-            Commands::Verify { i, repos } => verify::verify(cfg, repos),
-            Commands::Pull {
+            Command::Verify { i, repos } => verify::verify(cfg, repos).map(|_| vec![]),
+            Command::Pull {
                 queries,
                 all_platforms,
             } => {
                 // parse the query into an actual query
-                let queries: Vec<Result<_, _>> = queries
+                let queries: Vec<(String, Result<_, _>)> = queries
                     .into_iter()
-                    .map(VersionSearchQuery::try_from)
+                    .map(|s| {
+                        let try_from = VersionSearchQuery::try_from(s.as_str());
+                        (s, try_from)
+                    })
                     .collect();
 
                 // Any of the queries failed to parse
-                if let Some(e) = queries.iter().find(|v| v.is_err()) {
+                if let Some((s, e)) = queries.iter().find(|(_, v)| v.is_err()) {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
-                        format!["Failed to parse the query: {:?}", e],
+                        format!["Failed to parse the query {}: {:?}", s, e],
                     ));
                 }
                 // The query list is empty
@@ -90,7 +99,7 @@ impl Cli {
                 }
 
                 let queries: Vec<VersionSearchQuery> =
-                    queries.into_iter().map(|o| o.unwrap()).collect();
+                    queries.into_iter().map(|(_, o)| o.unwrap()).collect();
 
                 debug!["We are ready to download new builds. Initializing tokio"];
 
@@ -115,12 +124,12 @@ impl Cli {
                     Err(e) => Err(e),
                 }
             }
-            Commands::Rm {
+            Command::Rm {
                 query,
                 commands,
                 no_trash,
             } => todo!(),
-            Commands::Ls {
+            Command::Ls {
                 format,
                 sort_by,
                 installed_only,
@@ -135,8 +144,39 @@ impl Cli {
                 all_builds,
             )
             .map(|_| vec![]),
-            Commands::Launch { query, commands } => todo!(),
-            Commands::GithubAuth { user, token } => {
+            Command::Run { query, mut command } => {
+                if let Some(q) = query {
+                    if let Ok(q) = VersionSearchQuery::try_from(q.as_str()) {
+                        command = Some(RunCommand::Build {
+                            build_or_file: Some(q.to_string()),
+                            open_last: false,
+                        });
+                    } else {
+                        match PathBuf::try_from(&q) {
+                            Ok(pth) => command = Some(RunCommand::File { path: pth }),
+                            Err(_) => {
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidInput,
+                                    format!["Query {:?} could not be parsed as ", q]
+                                        + " a VersionSearchQuery or a filepath",
+                                ))
+                            }
+                        }
+                    }
+                }
+
+                if command.is_none() {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "No run command has been specified, see --help for details",
+                    ));
+                }
+
+                println!["{:?}", command];
+
+                Ok(vec![])
+            }
+            Command::GithubAuth { user, token } => {
                 let auth = GithubAuthentication { user, token };
                 Ok(vec![ConfigTask::UpdateGHAuth(auth)])
             }

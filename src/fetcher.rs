@@ -26,11 +26,10 @@ pub async fn fetch(cfg: &BLRSConfig, ignore_errors: bool) -> Result<ConfigTask, 
             .build()
             .unwrap();
 
+        info!["Fetching from {}", url];
         let r = fetch_repo(client, repo.clone()).await;
 
         let filename = repos_folder.join(repo.repo_id.clone() + ".json");
-
-        info!["Fetching from {}", url];
 
         let r = _process_result(filename, r).await;
 
