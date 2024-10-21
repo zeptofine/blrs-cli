@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use chrono::TimeDelta;
 use reqwest::StatusCode;
 use thiserror::Error;
 
@@ -27,8 +26,8 @@ pub enum CommandError {
     QueryResultEmpty(String),
     #[error("No query has been given but is required")]
     MissingQuery,
-    #[error("Insufficient time has passed since the last fetch. It is unlikely that new builds will be available, and to conserve requests these will be skipped.\nWait for {remaining}")]
-    FetchingTooFast { remaining: TimeDelta },
+    #[error("Insufficient time has passed since the last fetch. It is unlikely that new builds will be available, and to conserve requests these will be skipped.\nWait for {remaining}s")]
+    FetchingTooFast { remaining: i64 },
     #[error("Error making a request: {0:?}")]
     ReqwestError(reqwest::Error),
     #[error("request returned code {0:?}: {:?}", .0.canonical_reason())]

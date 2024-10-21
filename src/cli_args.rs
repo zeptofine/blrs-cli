@@ -73,7 +73,7 @@ impl Cli {
                 } else {
                     let time_remaining = ready_time - Utc::now();
                     Err(CommandError::FetchingTooFast {
-                        remaining: time_remaining,
+                        remaining: time_remaining.num_seconds(),
                     })
                 }
             }
