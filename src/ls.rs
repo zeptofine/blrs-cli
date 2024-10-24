@@ -1,6 +1,6 @@
 use blrs::{
     downloading::extensions::{filter_repos_by_target, get_target_setup},
-    repos::{read_repos, RepoEntry},
+    repos::{read_repos, BuildEntry, RepoEntry},
     BLRSConfig,
 };
 use clap::ValueEnum;
@@ -14,13 +14,15 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum, Serialize, Deserialize)]
 pub enum LsFormat {
+    /// A visual tree. Good for human interpretation, but not easily parsed.
     #[default]
     Tree,
-    JustPaths,
+    /// Shows filepaths of builds. Only shows installed.
+    Paths,
+    /// single-line JSON format.
     Json,
-    /// Json but indented by 4 spaces to make it more human readable.
+    /// Json but indented by 2 spaces to make it more human readable.
     PrettyJson,
-    Toml,
 }
 
 fn gather_and_filter_repos(
@@ -76,10 +78,25 @@ pub fn list_builds(
 
             println!["{}", tree];
         }),
-        LsFormat::JustPaths => todo!(),
-        LsFormat::Json => todo!(),
-        LsFormat::PrettyJson => todo!(),
-        LsFormat::Toml => todo!(),
+        LsFormat::Paths => {
+            all_repos.into_iter().for_each(|repo| match repo {
+                RepoEntry::Registered(_, vec) | RepoEntry::Unknown(_, vec) => {
+                    vec.into_iter().for_each(|build| match build {
+                        BuildEntry::Installed(_, local_build) => {
+                            println!["{}", local_build.folder.display()];
+                        }
+                        _ => {}
+                    });
+                }
+                RepoEntry::Error(_, error) => {}
+            });
+        }
+        LsFormat::Json => {
+            println!["{}", serde_json::to_string(&all_repos).unwrap()];
+        }
+        LsFormat::PrettyJson => {
+            println!["{}", serde_json::to_string_pretty(&all_repos).unwrap()];
+        }
     }
 
     Ok(())
