@@ -77,7 +77,7 @@ pub enum Command {
         /// checking if it is parseable as a valid version search query.
         /// If it is not, it is assumed you meant it to be a file.
         /// There may be false positives in the matcher parser if you name
-        /// your blendfiles wierdly.
+        /// your blendfiles weirdly.
         query: Option<String>,
 
         #[command(subcommand)]

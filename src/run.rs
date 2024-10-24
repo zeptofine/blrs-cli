@@ -14,7 +14,7 @@ use blrs::{
     BLRSConfig,
 };
 
-use log::{debug, info, warn};
+use log::{debug, warn};
 
 use crate::{
     commands::RunCommand,
@@ -53,7 +53,7 @@ pub fn run(
         // try to assume a query from the file header
         read_blendfile_header(file)
             .map(|header| {
-                info!["Header: {:?}", header];
+                debug!["Header: {:?}", header];
                 let ver = header.version();
 
                 VersionSearchQuery {
@@ -113,7 +113,7 @@ pub fn run(
             (0 | 2.., true) => return Err(CommandError::Cancelled),
             // Conflict found and initial matches is empty
             (0, false) => resolve_match(&query, &builds).cloned(),
-            // Conflic found and there are initial matches
+            // Conflict found and there are initial matches
             (2.., false) => resolve_match(
                 &query,
                 &initial_matches.into_iter().cloned().collect::<Vec<_>>(),
@@ -150,7 +150,6 @@ pub fn run(
         .args(
             params
                 .args
-                .clone()
                 .unwrap_or_default()
                 .into_iter()
                 .collect::<Vec<String>>(),
