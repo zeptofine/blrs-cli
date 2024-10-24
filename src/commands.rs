@@ -11,7 +11,10 @@ pub enum Command {
     Fetch {
         /// Ignore fetch timeouts.
         #[arg(short, long)]
+        /// Runs fetching from repos in parallel using async features. Can trigger ratelimits if used recklessly.
         force: bool,
+        #[arg(short, long)]
+        parallel: bool,
 
         /// If true, if an error occurs then it will continue trying to fetch the rest of the repos.
         ///
@@ -107,6 +110,4 @@ pub enum RunCommand {
         #[arg(short, long)]
         open_last: bool,
     },
-    /// Launches the last build and file launched by blrs
-    Last,
 }

@@ -15,7 +15,7 @@ use crate::{
     errs::{CommandError, IoErrorOrigin},
     fetcher,
     ls::list_builds,
-    pull,
+    pull, run,
     tasks::ConfigTask,
     verify,
 };
@@ -45,6 +45,7 @@ impl Cli {
         match self.commands.unwrap() {
             Command::Fetch {
                 force,
+                parallel,
                 ignore_errors,
             } => {
                 let checked_time = cfg.last_time_checked.unwrap_or_default();
@@ -56,7 +57,7 @@ impl Cli {
                     debug!["We are ready to check for new builds. Initializing tokio"];
 
                     let rt = tokio::runtime::Runtime::new().unwrap();
-                    let result = rt.block_on(fetcher::fetch(cfg, ignore_errors));
+                    let result = rt.block_on(fetcher::fetch(cfg, parallel, ignore_errors));
 
                     if result.is_ok() {
                         info![
@@ -160,13 +161,12 @@ impl Cli {
                     }
                 }
 
-                if command.is_none() {
-                    return Err(CommandError::NotEnoughInput);
-                }
+                let command = match command {
+                    Some(c) => c,
+                    None => return Err(CommandError::NotEnoughInput),
+                };
 
-                println!["{:?}", command];
-
-                Ok(vec![])
+                run::run(cfg, command, false).map(|_| vec![])
             }
             Command::GithubAuth { user, token } => {
                 let auth = GithubAuthentication { user, token };

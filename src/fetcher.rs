@@ -8,40 +8,68 @@ use blrs::{
     },
     BLRSConfig,
 };
+use futures::future::{join_all, try_join_all};
 use log::{debug, error, info};
 
 use crate::tasks::ConfigTask;
 
-/// Fetches from the builder's repo. If Ok(()) is returned, make sure to update the last time checked in the config.
-pub async fn fetch(cfg: &BLRSConfig, ignore_errors: bool) -> Result<ConfigTask, std::io::Error> {
+/// Fetches from the builder's repo
+pub async fn fetch(
+    cfg: &BLRSConfig,
+    parallel: bool,
+    ignore_errors: bool,
+) -> Result<ConfigTask, std::io::Error> {
     let repos_folder = &cfg.paths.remote_repos.clone();
     // Ensure the repos folder exists
     let _ = std::fs::create_dir_all(repos_folder);
 
+    let actions = cfg
+        .repos
+        .iter()
+        .map(|repo| async {
+            let url = repo.url();
+            let client = cfg
+                .client_builder(url.domain().is_some_and(|h| h.contains("api.github.com")))
+                .build()
+                .unwrap();
+
+            info!["Fetching from {}", url];
+            let r = fetch_repo(client, repo.clone()).await;
+
+            let filename = repos_folder.join(repo.repo_id.clone() + ".json");
+
+            _process_result(filename, r).await
+        })
+        .collect::<Vec<_>>();
+
     let mut result = Ok(ConfigTask::UpdateLastTimeChecked);
-    for repo in &cfg.repos.clone() {
-        let url = repo.url();
-        let client = cfg
-            .client_builder(url.domain().is_some_and(|h| h.contains("api.github.com")))
-            .build()
-            .unwrap();
+    if parallel {
+        if ignore_errors {
+            join_all(actions.into_iter())
+                .await
+                .into_iter()
+                .map(|r| match r {
+                    Ok(_) => Ok(ConfigTask::UpdateLastTimeChecked),
+                    Err(e) => Err(e),
+                })
+                .find(|r| r.is_err())
+                .unwrap_or_else(|| result)
+        } else {
+            try_join_all(actions.into_iter())
+                .await
+                .map(|r| ConfigTask::UpdateLastTimeChecked)
+        }
+    } else {
+        for action in actions.into_iter() {
+            let r = action.await.map(|_| ConfigTask::UpdateLastTimeChecked);
 
-        info!["Fetching from {}", url];
-        let r = fetch_repo(client, repo.clone()).await;
-
-        let filename = repos_folder.join(repo.repo_id.clone() + ".json");
-
-        let r = _process_result(filename, r).await;
-
-        if r.is_err() {
-            result = Err(r.unwrap_err());
-            if !ignore_errors {
-                break;
+            if r.is_err() && !ignore_errors {
+                result = r;
             }
         }
-    }
 
-    result
+        result
+    }
 }
 
 async fn _process_result(

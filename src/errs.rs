@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use blrs::search::query::FromError;
+use blrs::{info::ArgGenerationError, search::query::FromError};
 use reqwest::StatusCode;
 use thiserror::Error;
 
@@ -9,6 +9,7 @@ use thiserror::Error;
 pub enum IoErrorOrigin {
     Fetching,
     ReadingRepos,
+    CommandExecution,
     RenamingObject(PathBuf, PathBuf),
     ReadingObject(PathBuf),
     WritingObject(PathBuf),
@@ -18,9 +19,16 @@ pub enum IoErrorOrigin {
 pub enum CommandError {
     #[error(
         "Could not parse query {0:?}: {1:?}
-    Query syntax: <major_num>.<minor>.<patch>[-<branch>][[+ or #]<build_hash>][@<commit time>]"
+    Query syntax: [repo/]<major>.<minor>.<patch>[-<branch>][[+ or #]<build_hash>][@<commit time>]
+    The major, minor, and patch numbers can be integers, or one of these:
+    - `^`    | Match the largest/newest item
+    - `*`    | Match any item
+    - `-`    | Match the smallest/oldest item
+    "
     )]
     CouldNotParseQuery(String, FromError),
+    #[error("Could not generate params: {0:?}")]
+    CouldNotGenerateParams(ArgGenerationError),
     #[error("Not enough command input, see --help for details")]
     NotEnoughInput,
     #[error("No matches for Query(s) {0:?}")]
@@ -33,13 +41,10 @@ pub enum CommandError {
     ReqwestError(reqwest::Error),
     #[error("request returned code {0:?}: {:?}", .0.canonical_reason())]
     ReturnCode(StatusCode),
-
     #[error("Unsupported file format: {0:?}")]
     UnsupportedFileFormat(String),
-
     #[error("Cancelled pre-emptively")]
     Cancelled,
-
     #[error("IO Error from {0:?}:  {1:?}")]
     IoError(IoErrorOrigin, std::io::Error),
 }
@@ -54,6 +59,7 @@ impl CommandError {
             | CommandError::FetchingTooFast { remaining: _ } => 2,
             CommandError::ReturnCode(_)
             | CommandError::UnsupportedFileFormat(_)
+            | CommandError::CouldNotGenerateParams(_)
             | CommandError::ReqwestError(_) => 1,
             CommandError::IoError(_, error) => error.raw_os_error().unwrap_or(1),
             CommandError::Cancelled => 130,

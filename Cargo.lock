@@ -318,7 +318,6 @@ dependencies = [
 name = "blrs"
 version = "0.1.0"
 dependencies = [
- "async-std",
  "chrono",
  "directories",
  "figment",
@@ -333,7 +332,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "tokio",
  "uuid",
  "which",
  "zip",

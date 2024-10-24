@@ -2,24 +2,32 @@ use std::collections::HashMap;
 
 use blrs::repos::BuildVariant;
 use blrs::{
-    downloading::extensions::get_target_setup, fetching::build_repository::BuildRepo,
-    repos::Variants, search::query::VersionSearchQuery, BasicBuildInfo, RemoteBuild,
+    downloading::extensions::get_target_setup, repos::Variants, search::query::VersionSearchQuery,
+    BasicBuildInfo, RemoteBuild,
 };
 
-fn get_choice_map<'a>(
-    matches: &'a [(BasicBuildInfo, &BuildRepo)],
-) -> HashMap<String, &'a BasicBuildInfo> {
+type RepoNickname = String;
+
+fn get_choice_map<B>(matches: &[(B, RepoNickname)]) -> HashMap<String, &B>
+where
+    B: AsRef<BasicBuildInfo>,
+{
     let mut x: Vec<_> = matches
         .iter()
-        .map(|(b, repo)| (format!["{}/{}", repo.nickname, b.ver], b))
+        .map(|(b, nick)| (format!["{}/{}", nick, b.as_ref().ver], b))
         .collect();
-    x.sort_by_key(|(_, b)| (b.commit_dt, b.ver.clone()));
+    x.sort_by_key(|(_, b)| (b.as_ref().commit_dt, b.as_ref().ver.clone()));
     let max_choice_size = x.iter().map(|(c, _)| c.len()).max().unwrap_or_default();
     x.into_iter()
         .map(|(c, build)| {
             (
                 // Apply padding and add the date to the end
-                format!["{:<cs$}  {}", c, build.commit_dt, cs = max_choice_size],
+                format![
+                    "{:<cs$}  {}",
+                    c,
+                    build.as_ref().commit_dt,
+                    cs = max_choice_size
+                ],
                 build,
             )
         })
@@ -27,10 +35,13 @@ fn get_choice_map<'a>(
 }
 
 // If necessary, prompt the user to select which build to download
-pub fn resolve_match<'a>(
+pub fn resolve_match<'a, B>(
     q: &VersionSearchQuery,
-    matches: &'a [(BasicBuildInfo, &BuildRepo)],
-) -> Option<&'a BasicBuildInfo> {
+    matches: &'a [(B, RepoNickname)],
+) -> Option<&'a B>
+where
+    B: AsRef<BasicBuildInfo>,
+{
     if matches.len() == 1 {
         return Some(&matches[0].0);
     }

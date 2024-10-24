@@ -41,27 +41,32 @@ pub async fn pull_builds(
         .map_err(|e| CommandError::IoError(IoErrorOrigin::ReadingRepos, e))?
         .into_iter()
         .filter_map(|r| match r {
-            RepoEntry::Registered(repo, vec) => Some((
-                repo,
-                vec.into_iter()
+            RepoEntry::Registered(repo, vec) => {
+                let collect = vec
+                    .into_iter()
                     .filter_map(|entry| match entry {
                         BuildEntry::NotInstalled(variants) => Some(variants),
                         _ => None,
                     })
-                    .collect::<Vec<_>>(),
-            )),
+                    .collect::<Vec<_>>();
+                match collect.is_empty() {
+                    false => Some((repo, collect)),
+                    true => None,
+                }
+            }
             _ => None,
         })
-        .filter(|(_, v)| !v.is_empty())
         .collect();
 
     let mut map = build_map(&repos, all_platforms);
 
-    let builds: Vec<(BasicBuildInfo, &BuildRepo)> =
-        map.iter().map(|(b, (_, r))| (b.clone(), *r)).collect();
+    let builds: Vec<(BasicBuildInfo, String)> = map
+        .iter()
+        .map(|(b, (_, r))| (b.clone(), r.nickname.clone()))
+        .collect();
 
     let matcher = BInfoMatcher::new(&builds);
-    let matches: Vec<(&VersionSearchQuery, Vec<(BasicBuildInfo, &BuildRepo)>)> = {
+    let matches: Vec<(&VersionSearchQuery, Vec<(BasicBuildInfo, String)>)> = {
         queries
             .iter()
             .map(|q| (q, matcher.find_all(q).into_iter().cloned().collect()))
@@ -81,7 +86,9 @@ pub async fn pull_builds(
     let choices = matches
         .into_iter()
         // Check if any of the queries had multiple matches. If so, perform conflict resolution
-        .filter_map(|(q, binfos)| resolve_match(q, &binfos).cloned())
+        .filter_map(|(q, binfos)| {
+            resolve_match(q, &binfos.into_iter().collect::<Vec<_>>()).cloned()
+        })
         // Get variants of the chosen builds
         .map(|info: BasicBuildInfo| {
             let remove = map.remove(&info).unwrap();
@@ -93,7 +100,7 @@ pub async fn pull_builds(
 
             remove
         })
-        // Check the queue variants
+        // Check if the variants were larger than 1. If so, perform conflict resolution
         .filter_map(|(variants, repo): (Variants<_>, &BuildRepo)| {
             resolve_variant(variants, all_platforms).map(|build| (build, repo))
         });
@@ -190,7 +197,7 @@ fn build_map(
             }
         });
 
-    // Filter out build variants that do not coencide with self
+    // Filter out build variants that do not coencide with our system
     if !all_platforms {
         let target = get_target_setup().unwrap();
 
