@@ -37,8 +37,10 @@ cargo install blrs-cli --git https://github.com/zeptofine/blrs-cli
 # the command `blrs` should now be available.
 ```
 
+## TODO
 
-
+- [ ] Extraction of .zip files for Windows
+- [ ] Extraction of .dmg files for macOS
 
 
 ## Contributing

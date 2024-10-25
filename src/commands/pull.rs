@@ -422,6 +422,16 @@ where
 
             Ok(true)
         }
+        // TODO:
+        "zip" => {
+            println!["DETECTED ZIP FILE {:?}", filepath];
+            todo!();
+        }
+        // TODO:
+        "dmg" => {
+            println!["DETECTED DMG FILE {:?}", filepath];
+            todo!();
+        }
         _ => Ok(false),
     }
 }
