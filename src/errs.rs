@@ -54,6 +54,8 @@ pub enum CommandError {
 
     #[error("IO Error from {0:?}:  {1:?}")]
     IoError(IoErrorOrigin, std::io::Error),
+    #[error("Broken archive {0:?}:  {1:?}")]
+    BrokenArchive(PathBuf, &'static str),
 }
 
 impl CommandError {
@@ -68,6 +70,7 @@ impl CommandError {
             CommandError::ReturnCode(_)
             | CommandError::UnsupportedFileFormat(_)
             | CommandError::CouldNotGenerateParams(_)
+            | CommandError::BrokenArchive(_, _)
             | CommandError::ReqwestError(_) => 1,
             CommandError::IoError(_, error) => error.raw_os_error().unwrap_or(1),
             CommandError::TrashError(_, error) => match error {

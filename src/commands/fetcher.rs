@@ -52,8 +52,8 @@ pub async fn fetch(
                     Ok(_) => Ok(ConfigTask::UpdateLastTimeChecked),
                     Err(e) => Err(e),
                 })
-                .find(|r| r.is_err())
-                .unwrap_or_else(|| result)
+                .find(Result::is_err)
+                .unwrap_or(result)
         } else {
             try_join_all(actions.into_iter())
                 .await

@@ -56,7 +56,8 @@ where
 
     let choice_map = get_choice_map(matches);
 
-    let choices: Vec<_> = choice_map.keys().cloned().collect();
+    let mut choices: Vec<_> = choice_map.keys().cloned().collect();
+    choices.sort();
     let last_idx = choices.len() - 1;
 
     println![];
@@ -81,7 +82,8 @@ pub fn resolve_variant(
     all_platforms: bool,
 ) -> Option<RemoteBuild> {
     let (resolve_txt, variants) = if !all_platforms {
-        let v = variants.clone().filter_target(get_target_setup().unwrap());
+        let mut v = variants.clone().filter_target(get_target_setup().unwrap());
+        v.v.sort_by_key(|variant| variant.to_string());
 
         let v = if v.v.is_empty() { variants } else { v };
 

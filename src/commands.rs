@@ -192,7 +192,7 @@ impl Command {
             Command::Rm { queries, no_trash } => {
                 let queries = strings_to_queries(queries)?;
 
-                rm::remove_builds(&cfg, queries, no_trash).map(|_| vec![])
+                rm::remove_builds(cfg, queries, no_trash).map(|_| vec![])
             }
             Command::Ls {
                 format,

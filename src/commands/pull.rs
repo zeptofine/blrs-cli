@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::fs::File;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock};
-use std::{collections::HashMap, fmt::Write};
 
 use blrs::build_targets::get_target_setup;
 use blrs::info::build_info::LocalBuildInfo;
@@ -13,14 +14,15 @@ use blrs::{
     repos::{read_repos, BuildEntry, RepoEntry, Variants},
     BLRSConfig, BasicBuildInfo, RemoteBuild,
 };
+
 use futures::AsyncWriteExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressState, ProgressStyle};
-
 use log::{error, info, warn};
 use reqwest::{Client, Url};
 use tar::Archive;
 use uuid::Uuid;
 use xz::read::XzDecoder;
+use zip::ZipArchive;
 
 use crate::errs::{error_reading, error_renaming, error_writing, CommandError, IoErrorOrigin};
 use crate::resolving::{resolve_match, resolve_variant};
@@ -111,9 +113,12 @@ pub async fn pull_builds(
         "{spinner:.green} [{elapsed_precise} (ETA {eta})] [{bar:40.cyan/red}] {bytes}/{total_bytes} {msg:.green}";
     let pbstyle = ProgressStyle::with_template(template)
         .unwrap()
-        .with_key("eta", |state: &ProgressState, w: &mut dyn Write| {
-            write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
-        })
+        .with_key(
+            "eta",
+            |state: &ProgressState, w: &mut dyn std::fmt::Write| {
+                write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+            },
+        )
         .progress_chars("#|-");
 
     // Setup Ctrl+C handler, if possible
@@ -170,6 +175,7 @@ pub async fn pull_builds(
             .await
             .into_iter()
             .collect();
+    println!["{:?}", result];
 
     prompt_deletions(result, targets);
 
@@ -400,9 +406,7 @@ where
                         async_std::fs::create_dir_all(parent_path)
                             .await
                             .map_err(|e| error_writing(parent_path.into(), e))?;
-                        entry
-                            .unpack(pth)
-                            .map_err(|e| error_writing(filepath.into(), e))?;
+                        entry.unpack(&pth).map_err(|e| error_writing(pth, e))?;
 
                         ppb.inc(unpacked_size);
                     }
@@ -424,15 +428,68 @@ where
         }
         // TODO:
         "zip" => {
-            println!["DETECTED ZIP FILE {:?}", filepath];
-            todo!();
+            let mut archive = ZipArchive::new(
+                File::open(filepath).map_err(|e| error_reading(filepath.into(), e))?,
+            )
+            .map_err(|e| match e {
+                zip::result::ZipError::Io(error) => error_reading(filepath.to_path_buf(), error),
+                zip::result::ZipError::InvalidArchive(e)
+                | zip::result::ZipError::UnsupportedArchive(e) => {
+                    CommandError::BrokenArchive(filepath.to_path_buf(), e)
+                }
+                zip::result::ZipError::FileNotFound => todo!(),
+                zip::result::ZipError::InvalidPassword => todo!(),
+                _ => todo!(),
+            })?;
+
+            let total_size = archive
+                .decompressed_size()
+                .map(|n| n as u64)
+                .unwrap_or_else(|| filepath.metadata().unwrap().len());
+            ppb.set_length(total_size);
+            ppb.set_position(0);
+
+            for name in archive.file_names().map(str::to_string).collect::<Vec<_>>() {
+                println!["{:?}", name];
+                let mut file = archive.by_name(&name).unwrap();
+
+                let file_path = file.enclosed_name().unwrap_or(file.mangled_name());
+
+                // Skip the root folder
+                let pth: PathBuf =
+                    destination.join(file_path.components().skip(1).collect::<PathBuf>());
+
+                let parent_path = pth.parent().unwrap();
+                let _ = async_std::fs::create_dir_all(parent_path).await;
+                if file.is_dir() {
+                    async_std::fs::create_dir_all(&pth)
+                        .await
+                        .map_err(|e| error_writing(pth.clone(), e))?;
+                } else {
+                    {
+                        let mut extracted_file = std::fs::File::create(&pth)
+                            .map_err(|e| error_writing(pth.clone(), e))?;
+
+                        let mut v = Vec::with_capacity(file.size() as usize);
+                        file.read_to_end(&mut v)
+                            .map_err(|e| error_writing(pth.clone(), e))?;
+                        extracted_file
+                            .write_all(&v)
+                            .map_err(|e| error_writing(pth, e))?;
+                    }
+                }
+
+                ppb.inc(file.size());
+            }
+
+            Ok(true)
         }
         // TODO:
         "dmg" => {
             println!["DETECTED DMG FILE {:?}", filepath];
             todo!();
         }
-        _ => Ok(false),
+        ext => Err(CommandError::UnsupportedFileFormat(ext.to_string())),
     }
 }
 

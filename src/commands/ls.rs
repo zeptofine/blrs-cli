@@ -81,11 +81,10 @@ pub fn list_builds(
         LsFormat::Paths => {
             all_repos.into_iter().for_each(|repo| match repo {
                 RepoEntry::Registered(_, vec) | RepoEntry::Unknown(_, vec) => {
-                    vec.into_iter().for_each(|build| match build {
-                        BuildEntry::Installed(_, local_build) => {
+                    vec.into_iter().for_each(|build| {
+                        if let BuildEntry::Installed(_, local_build) = build {
                             println!["{}", local_build.folder.display()];
                         }
-                        _ => {}
                     });
                 }
                 RepoEntry::Error(_, _) => {}

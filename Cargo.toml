@@ -7,7 +7,7 @@ edition = "2021"
 ansi_term = "0.12.1"
 async-std = "1.13.0"
 
-# blrs = { path = "../blrs" }
+# blrs = { path = "../blrs", features = ["all"] }
 blrs = { features = ["all"], git = "https://github.com/zeptofine/blrs" }
 
 cargo-util = "0.2.14"
