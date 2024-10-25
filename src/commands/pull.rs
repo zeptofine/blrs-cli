@@ -4,13 +4,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock};
 use std::{collections::HashMap, fmt::Write};
 
+use blrs::build_targets::get_target_setup;
 use blrs::info::build_info::LocalBuildInfo;
+use blrs::search::{BInfoMatcher, VersionSearchQuery};
 use blrs::LocalBuild;
 use blrs::{
-    downloading::extensions::get_target_setup,
     fetching::{build_repository::BuildRepo, fetcher::FetchStreamerState},
     repos::{read_repos, BuildEntry, RepoEntry, Variants},
-    search::{query::VersionSearchQuery, searching::BInfoMatcher},
     BLRSConfig, BasicBuildInfo, RemoteBuild,
 };
 use futures::AsyncWriteExt;
@@ -141,7 +141,7 @@ pub async fn pull_builds(
 
             let completed_filepath = repo_path.join(&filename);
             let temporary_filepath = completed_filepath.with_extension(extension + ".part");
-            let destination = repo_path.join(remote_build.basic.ver.v.to_string());
+            let destination = repo_path.join(remote_build.basic.version().to_string());
 
             let ppb = pb.add(ProgressBar::new(0));
             ppb.set_style(pbstyle.clone());

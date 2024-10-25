@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use blrs::{
     config::FETCH_INTERVAL, fetching::authentication::GithubAuthentication,
-    search::query::VersionSearchQuery, BLRSConfig,
+    search::VersionSearchQuery, BLRSConfig,
 };
 use chrono::Utc;
 use clap::Subcommand;

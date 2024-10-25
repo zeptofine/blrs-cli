@@ -7,12 +7,12 @@ use std::{
 use ansi_term as at;
 use blrs::{
     fetching::build_repository::BuildRepo,
-    info::build_info::VerboseVersion,
     repos::{BuildEntry, RepoEntry},
-    search::query::VersionSearchQuery,
+    search::VersionSearchQuery,
 };
 use chrono::{DateTime, TimeZone, Utc};
 use clap::ValueEnum;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use termtree as tt;
 
@@ -34,25 +34,27 @@ impl SortFormat {
     pub fn sort(&self, v: &mut [BuildEntry]) {
         match self {
             SortFormat::Version => v.sort_by_key(|e| match e {
-                BuildEntry::NotInstalled(remote_build) => {
-                    (remote_build.basic.ver.clone(), remote_build.basic.commit_dt)
-                }
+                BuildEntry::NotInstalled(remote_build) => (
+                    remote_build.basic.version().clone(),
+                    remote_build.basic.commit_dt,
+                ),
                 BuildEntry::Installed(_, local_build) => (
-                    local_build.info.basic.ver.clone(),
+                    local_build.info.basic.version().clone(),
                     local_build.info.basic.commit_dt,
                 ),
                 BuildEntry::Errored(_error, _path_buf) => {
-                    (VerboseVersion::default(), DateTime::default())
+                    (Version::new(0, 0, 0), DateTime::default())
                 }
             }),
             SortFormat::Datetime => {
                 v.sort_by_key(|e| match e {
-                    BuildEntry::NotInstalled(remote_build) => {
-                        (remote_build.basic.commit_dt, remote_build.basic.ver.clone())
-                    }
+                    BuildEntry::NotInstalled(remote_build) => (
+                        remote_build.basic.commit_dt,
+                        remote_build.basic.version().clone(),
+                    ),
                     BuildEntry::Installed(_, local_build) => (
                         local_build.info.basic.commit_dt,
-                        local_build.info.basic.ver.clone(),
+                        local_build.info.basic.version().clone(),
                     ),
                     BuildEntry::Errored(_error, pb) => (
                         pb.clone()
@@ -61,7 +63,7 @@ impl SortFormat {
                                     .map(system_time_to_date_time)
                             })
                             .unwrap_or_default(),
-                        VerboseVersion::default(),
+                        Version::new(0, 0, 0),
                     ),
                 });
             }

@@ -4,7 +4,7 @@ use async_std::io::WriteExt;
 use blrs::{
     fetching::{
         build_repository::{fetch_repo, FetchError},
-        build_schemas::builder_schema::BlenderBuildSchema,
+        build_schemas::BlenderBuildSchema,
     },
     BLRSConfig,
 };

@@ -11,7 +11,7 @@ impl ConfigTask {
     pub fn eval(self, cfg: &mut BLRSConfig) {
         match self {
             Self::UpdateGHAuth(github_authentication) => {
-                cfg.gh_auth = Some(github_authentication);
+                cfg.update_github_authentication(Some(github_authentication));
             }
             Self::UpdateLastTimeChecked => {
                 let dt = Utc::now();

@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
-use blrs::repos::BuildVariant;
-use blrs::{
-    downloading::extensions::get_target_setup, repos::Variants, search::query::VersionSearchQuery,
-    BasicBuildInfo, RemoteBuild,
-};
+use blrs::build_targets::get_target_setup;
+use blrs::repos::{BuildVariant, Variants};
+use blrs::search::VersionSearchQuery;
+use blrs::{BasicBuildInfo, RemoteBuild};
 
 type RepoNickname = String;
 

@@ -3,14 +3,11 @@ use std::{path::PathBuf, process};
 use blrs::{
     fetching::build_repository::BuildRepo,
     info::{
-        blendfile_reader::read_blendfile_header, BlendLaunchTarget, GeneratedParams,
-        LaunchArguments, OSLaunchTarget,
+        launching::{BlendLaunchTarget, GeneratedParams, LaunchArguments, OSLaunchTarget},
+        read_blendfile_header,
     },
     repos::{read_repos, BuildEntry, RepoEntry},
-    search::{
-        query::{OrdPlacement, VersionSearchQuery, WildPlacement},
-        searching::BInfoMatcher,
-    },
+    search::{BInfoMatcher, OrdPlacement, VersionSearchQuery, WildPlacement},
     BLRSConfig,
 };
 

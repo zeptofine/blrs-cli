@@ -1,5 +1,5 @@
 use blrs::{
-    downloading::extensions::{filter_repos_by_target, get_target_setup},
+    build_targets::{filter_repos_by_target, get_target_setup},
     repos::{read_repos, BuildEntry, RepoEntry},
     BLRSConfig,
 };

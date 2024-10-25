@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use blrs::{info::ArgGenerationError, search::query::FromError};
+use blrs::{info::launching::ArgGenerationError, search::FromError};
 use reqwest::StatusCode;
 use thiserror::Error;
 

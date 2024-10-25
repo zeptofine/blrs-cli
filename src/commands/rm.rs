@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use blrs::{
     fetching::build_repository::BuildRepo,
     repos::read_repos,
-    search::{query::VersionSearchQuery, searching::BInfoMatcher},
+    search::{BInfoMatcher, VersionSearchQuery},
     BLRSConfig, LocalBuild,
 };
 use log::{error, info};
