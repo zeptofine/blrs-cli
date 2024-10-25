@@ -11,13 +11,10 @@ use log::{debug, info};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    commands::{Command, RunCommand},
+    commands::{fetcher, ls, pull, verify, Command, RunCommand},
     errs::{CommandError, IoErrorOrigin},
-    fetcher,
-    ls::list_builds,
-    pull, run,
+    run,
     tasks::ConfigTask,
-    verify,
 };
 
 #[derive(Parser, Debug, Clone, Serialize, Deserialize)]
@@ -132,18 +129,14 @@ impl Cli {
                     Err(e) => Err(e),
                 }
             }
-            Command::Rm {
-                query,
-                commands,
-                no_trash,
-            } => todo!(),
+            Command::Rm { queries, no_trash } => todo!(),
             Command::Ls {
                 format,
                 sort_by,
                 installed_only,
                 variants,
                 all_builds,
-            } => list_builds(
+            } => ls::list_builds(
                 cfg,
                 format.unwrap_or_default(),
                 sort_by.unwrap_or_default(),

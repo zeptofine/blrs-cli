@@ -12,14 +12,10 @@ use log::debug;
 mod cli_args;
 mod commands;
 mod errs;
-mod fetcher;
-mod ls;
-mod pull;
 mod repo_formatting;
 mod resolving;
 mod run;
 mod tasks;
-mod verify;
 
 fn main() -> Result<(), std::io::Error> {
     #[cfg(target_os = "windows")]

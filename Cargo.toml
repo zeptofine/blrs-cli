@@ -32,3 +32,7 @@ zip = "2.2.0"
 
 [profile.release]
 lto = "fat"
+
+[[bin]]
+name = "blrs"
+path = "src/main.rs"

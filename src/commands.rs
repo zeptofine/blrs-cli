@@ -1,9 +1,15 @@
 use std::path::PathBuf;
 
 use clap::Subcommand;
+use ls::LsFormat;
 use serde::{Deserialize, Serialize};
 
-use crate::{ls::LsFormat, repo_formatting::SortFormat};
+use crate::repo_formatting::SortFormat;
+
+pub mod fetcher;
+pub mod ls;
+pub mod pull;
+pub mod verify;
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
 pub enum Command {
@@ -38,10 +44,7 @@ pub enum Command {
 
     /// Tries to send a specified build to the trash.
     Rm {
-        query: String,
-
-        #[command(subcommand)]
-        commands: Option<RmCommands>,
+        queries: Vec<String>,
 
         /// Tries to fully delete a file, and does not send the file to the trash
         #[arg(short, long)]
@@ -90,12 +93,6 @@ pub enum Command {
     ///
     /// WARNING! This is not encrypted and is readily available in your config location.
     GithubAuth { user: String, token: String },
-}
-
-#[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
-pub enum RmCommands {
-    /// Remove a build with a specific hash
-    Hash { h: String },
 }
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
