@@ -9,6 +9,7 @@ use blrs::{
     fetching::build_repository::BuildRepo,
     info::build_info::VerboseVersion,
     repos::{BuildEntry, RepoEntry},
+    search::query::VersionSearchQuery,
 };
 use chrono::{DateTime, TimeZone, Utc};
 use clap::ValueEnum;
@@ -87,7 +88,7 @@ impl<'a> Display for BuildEntryTreeConstructor<'a> {
             BuildEntry::NotInstalled(remote_builds) => write![
                 f,
                 "{} {}",
-                remote_builds.basic.ver.v,
+                VersionSearchQuery::from(remote_builds.basic.clone()).with_commit_dt(None),
                 at::Color::White.dimmed().paint(format![
                     "{} - {} variants",
                     remote_builds.basic.commit_dt,
@@ -98,7 +99,7 @@ impl<'a> Display for BuildEntryTreeConstructor<'a> {
                 write![
                     f,
                     "{} {} {}",
-                    local_build.info.basic.ver.v,
+                    VersionSearchQuery::from(local_build.info.basic.clone()).with_commit_dt(None),
                     at::Color::White
                         .dimmed()
                         .paint(format!["{}", local_build.info.basic.commit_dt]),

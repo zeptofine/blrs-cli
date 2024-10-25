@@ -48,7 +48,7 @@ impl Cli {
                 parallel,
                 ignore_errors,
             } => {
-                let checked_time = cfg.last_time_checked.unwrap_or_default();
+                let checked_time = cfg.history.last_time_checked.unwrap_or_default();
                 let ready_time = checked_time + FETCH_INTERVAL;
                 // Check if we are past the time we should be able to check for new builds.
                 let ready_to_check = ready_time < chrono::Utc::now();
@@ -101,8 +101,13 @@ impl Cli {
                     return Err(CommandError::MissingQuery);
                 }
 
-                let queries: Vec<VersionSearchQuery> =
-                    queries.into_iter().map(|(_, o)| o.unwrap()).collect();
+                let queries: Vec<VersionSearchQuery> = queries
+                    .into_iter()
+                    .map(|(_, o)| {
+                        debug!["{:?}", o];
+                        o.unwrap()
+                    })
+                    .collect();
 
                 debug!["We are ready to download new builds. Initializing tokio"];
 

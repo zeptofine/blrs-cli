@@ -88,7 +88,7 @@ pub fn list_builds(
                         _ => {}
                     });
                 }
-                RepoEntry::Error(_, error) => {}
+                RepoEntry::Error(_, _) => {}
             });
         }
         LsFormat::Json => {

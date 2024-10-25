@@ -79,7 +79,7 @@ fn main() -> Result<(), std::io::Error> {
             }
             tasks::ConfigTask::UpdateLastTimeChecked => {
                 let dt = Utc::now();
-                cfg.last_time_checked = Some(dt);
+                cfg.history.last_time_checked = Some(dt);
             }
         }
     }

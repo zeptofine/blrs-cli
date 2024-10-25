@@ -24,6 +24,7 @@ pub enum CommandError {
     - `^`    | Match the largest/newest item
     - `*`    | Match any item
     - `-`    | Match the smallest/oldest item
+    The commit time HAS to be one of these. By default it is \"*\"
     "
     )]
     CouldNotParseQuery(String, FromError),
