@@ -69,8 +69,14 @@ pub fn list_builds(
         .inspect_err(|e| error!("Failed to create library path: {:?}", e))
         .map_err(|e| error_writing(cfg.paths.library.clone(), e))?;
 
-    let all_repos = gather_and_filter_repos(cfg, installed_only, all_builds, Some(sort_format))
+    let mut all_repos = gather_and_filter_repos(cfg, installed_only, all_builds, Some(sort_format))
         .map_err(|e| CommandError::IoError(IoErrorOrigin::ReadingRepos, e))?;
+
+    all_repos.sort_by_cached_key(|r| match r {
+        RepoEntry::Registered(build_repo, vec) => build_repo.nickname.clone(),
+        RepoEntry::Unknown(s, vec) => s.clone(),
+        RepoEntry::Error(s, error) => s.clone(),
+    });
 
     match ls_format {
         LsFormat::Tree => all_repos.into_iter().for_each(|repo_entry| {

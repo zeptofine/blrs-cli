@@ -175,7 +175,6 @@ pub async fn pull_builds(
             .await
             .into_iter()
             .collect();
-    println!["{:?}", result];
 
     prompt_deletions(result, targets);
 
@@ -416,7 +415,7 @@ where
                         ))
                     }
                 }
-    
+
                 if CANCELLED.load(Ordering::Acquire) {
                     return Err(CommandError::Cancelled);
                 }

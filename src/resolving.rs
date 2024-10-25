@@ -57,7 +57,13 @@ where
     let choice_map = get_choice_map(matches);
 
     let mut choices: Vec<_> = choice_map.keys().cloned().collect();
-    choices.sort();
+
+    // Sort the matches by the commit date, then the version
+    choices.sort_by_cached_key(|b| {
+        let build = choice_map[b].as_ref();
+        build
+    });
+
     let last_idx = choices.len() - 1;
 
     println![];
