@@ -18,10 +18,9 @@ the same basic purpose without too many extra features.
 
 ### Benefits
 
-- **Increased productivity**: Spend less time managing Blender installations and more time creating.
 - **Enhanced organization**: Keep your Blender builds neatly organized and easily accessible.
-- Simplified workflow: Streamline your development process by effortlessly switching between versions for different projects.
-- **Scriptable**: Use shell and batch scripts to automatically launch the latest Blender version or whatever you want.
+- **Simplified workflow**: Streamline your development process by effortlessly switching between versions for different projects.
+- **Scriptable**: Use shell and batch scripts as shortcuts to different versions.
 
 
 ### Target Audience
