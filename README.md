@@ -1,4 +1,4 @@
-# blrs-cli: Streamline your Blender workflow
+# blrs-cli
 
 #### `blrs-cli` is a command-line tool designed to simplify the management of multiple Blender builds. It allows you to easily download, install, and switch between various versions, making it ideal for artists who work with different project requirements or addon compatibilities.
 
