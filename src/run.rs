@@ -11,7 +11,7 @@ use blrs::{
     BLRSConfig,
 };
 
-use log::{debug, warn};
+use log::{debug, warn, info};
 
 use crate::{
     commands::RunCommand,
@@ -152,6 +152,8 @@ pub fn run(
                 .collect::<Vec<String>>(),
         )
         .envs(params.env.clone().unwrap_or_default());
+
+    info!["Running command {:?}", command];
 
     command
         .status()

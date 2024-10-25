@@ -326,7 +326,7 @@ dependencies = [
 [[package]]
 name = "blrs"
 version = "0.1.0"
-source = "git+https://github.com/zeptofine/blrs#6a021843b13c4e39b62003577a3360e089dda9a9"
+source = "git+https://github.com/zeptofine/blrs#93bfc77a69aece5f9446a94e1564f401df8a773e"
 dependencies = [
  "chrono",
  "directories",
