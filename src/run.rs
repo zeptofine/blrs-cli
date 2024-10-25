@@ -110,7 +110,7 @@ pub fn run(
             // No conflict found
             (1, _) => Some(initial_matches[0].0.clone()),
             // Conflict found and can't resolve
-            (0 | 2.., true) => return Err(CommandError::Cancelled),
+            (0 | 2.., true) => return Err(CommandError::InvalidInput),
             // Conflict found and initial matches is empty
             (0, false) => resolve_match(&query, &builds).cloned(),
             // Conflict found and there are initial matches
@@ -124,7 +124,7 @@ pub fn run(
 
     let chosen_build = match chosen_build {
         Some(c) => c,
-        None => return Err(CommandError::Cancelled),
+        None => return Err(CommandError::InvalidInput),
     };
 
     let launch_arguments = LaunchArguments {

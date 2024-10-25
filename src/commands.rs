@@ -164,31 +164,7 @@ impl Command {
                 queries,
                 all_platforms,
             } => {
-                // parse the query into an actual query
-                let queries: Vec<(String, Result<_, _>)> = queries
-                    .into_iter()
-                    .map(|s| {
-                        let try_from = VersionSearchQuery::try_from(s.as_str());
-                        (s, try_from)
-                    })
-                    .collect();
-
-                // Any of the queries failed to parse
-                if let Some((s, Err(e))) = queries.iter().find(|(_, v)| v.is_err()) {
-                    return Err(CommandError::CouldNotParseQuery(s.clone(), e.clone()));
-                }
-                // The query list is empty
-                if queries.is_empty() {
-                    return Err(CommandError::MissingQuery);
-                }
-
-                let queries: Vec<VersionSearchQuery> = queries
-                    .into_iter()
-                    .map(|(_, o)| {
-                        debug!["{:?}", o];
-                        o.unwrap()
-                    })
-                    .collect();
+                let queries = strings_to_queries(queries)?;
 
                 debug!["We are ready to download new builds. Initializing tokio"];
 
@@ -213,7 +189,11 @@ impl Command {
                     Err(e) => Err(e),
                 }
             }
-            Command::Rm { queries, no_trash } => todo!(),
+            Command::Rm { queries, no_trash } => {
+                let queries = strings_to_queries(queries)?;
+
+                rm::remove_builds(&cfg, queries, no_trash).map(|_| vec![])
+            }
             Command::Ls {
                 format,
                 sort_by,
@@ -256,4 +236,34 @@ impl Command {
             }
         }
     }
+}
+
+fn strings_to_queries(queries: Vec<String>) -> Result<Vec<VersionSearchQuery>, CommandError> {
+    // parse the query into an actual query
+    let queries: Vec<(String, Result<_, _>)> = queries
+        .into_iter()
+        .map(|s| {
+            let try_from = VersionSearchQuery::try_from(s.as_str());
+            (s, try_from)
+        })
+        .collect();
+
+    // Any of the queries failed to parse
+    if let Some((s, Err(e))) = queries.iter().find(|(_, v)| v.is_err()) {
+        return Err(CommandError::CouldNotParseQuery(s.clone(), e.clone()));
+    }
+    // The query list is empty
+    if queries.is_empty() {
+        return Err(CommandError::MissingQuery);
+    }
+
+    let queries: Vec<VersionSearchQuery> = queries
+        .into_iter()
+        .map(|(_, o)| {
+            debug!["{:?}", o];
+            o.unwrap()
+        })
+        .collect();
+
+    Ok(queries)
 }

@@ -26,6 +26,7 @@ termtree = "0.5.1"
 thiserror = "1.0.64"
 tokio = { version = "1.40.0", features = ["full"] }
 toml = "0.8.19"
+trash = "5.1.1"
 uuid = { version = "1.10.0", features = ["v4", "fast-rng"] }
 xz = "0.1.0"
 zip = "2.2.0"

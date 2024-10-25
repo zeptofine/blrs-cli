@@ -8,13 +8,22 @@ use blrs::{
 
 type RepoNickname = String;
 
-fn get_choice_map<B>(matches: &[(B, RepoNickname)]) -> HashMap<String, &B>
+pub fn get_choice_map<B>(matches: &[(B, RepoNickname)]) -> HashMap<String, &B>
 where
     B: AsRef<BasicBuildInfo>,
 {
     let mut x: Vec<_> = matches
         .iter()
-        .map(|(b, nick)| (format!["{}/{}", nick, b.as_ref().ver], b))
+        .map(|(b, nick)| {
+            (
+                format![
+                    "{}/{}",
+                    nick,
+                    VersionSearchQuery::from(b.as_ref().clone()).with_commit_dt(None)
+                ],
+                b,
+            )
+        })
         .collect();
     x.sort_by_key(|(_, b)| (b.as_ref().commit_dt, b.as_ref().ver.clone()));
     let max_choice_size = x.iter().map(|(c, _)| c.len()).max().unwrap_or_default();

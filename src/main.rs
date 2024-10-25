@@ -2,12 +2,11 @@ use std::io::Write;
 
 use ansi_term::Color;
 use blrs::config::{BLRSConfig, PROJECT_DIRS};
-use chrono::Utc;
 use clap::{CommandFactory, Parser};
 
 use cli_args::Cli;
 use commands::Command;
-use log::debug;
+use log::{debug, error};
 
 mod cli_args;
 mod commands;
@@ -57,28 +56,17 @@ fn main() -> Result<(), std::io::Error> {
     let tasks = match r {
         Ok(b) => b,
         Err(e) => {
-            println![
+            error![
                 "\n{}\n    {}",
                 Color::Red.bold().paint("COMMAND EXECUTION ERROR:"),
                 e
             ];
-            println![];
             std::process::exit(e.exit_code());
         }
     };
 
     let tasks_exist = !tasks.is_empty();
-    for task in tasks {
-        match task {
-            tasks::ConfigTask::UpdateGHAuth(github_authentication) => {
-                cfg.gh_auth = Some(github_authentication);
-            }
-            tasks::ConfigTask::UpdateLastTimeChecked => {
-                let dt = Utc::now();
-                cfg.history.last_time_checked = Some(dt);
-            }
-        }
-    }
+    tasks.into_iter().for_each(|task| task.eval(&mut cfg));
 
     if tasks_exist {
         // Save the configuration to a file

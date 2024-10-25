@@ -13,6 +13,7 @@ pub enum IoErrorOrigin {
     RenamingObject(PathBuf, PathBuf),
     ReadingObject(PathBuf),
     WritingObject(PathBuf),
+    DeletingObject(PathBuf),
 }
 
 #[derive(Error, Debug)]
@@ -32,6 +33,8 @@ pub enum CommandError {
     CouldNotGenerateParams(ArgGenerationError),
     #[error("Not enough command input, see --help for details")]
     NotEnoughInput,
+    #[error("Invalid command input, see --help for details")]
+    InvalidInput,
     #[error("No matches for Query(s) {0:?}")]
     QueryResultEmpty(String),
     #[error("No query has been given but is required")]
@@ -46,6 +49,9 @@ pub enum CommandError {
     UnsupportedFileFormat(String),
     #[error("Cancelled pre-emptively")]
     Cancelled,
+    #[error("Trash error from {0:?}:  {1:?}")]
+    TrashError(PathBuf, trash::Error),
+
     #[error("IO Error from {0:?}:  {1:?}")]
     IoError(IoErrorOrigin, std::io::Error),
 }
@@ -56,6 +62,7 @@ impl CommandError {
             CommandError::CouldNotParseQuery(_, _)
             | CommandError::MissingQuery
             | CommandError::NotEnoughInput
+            | CommandError::InvalidInput
             | CommandError::QueryResultEmpty(_)
             | CommandError::FetchingTooFast { remaining: _ } => 2,
             CommandError::ReturnCode(_)
@@ -63,6 +70,13 @@ impl CommandError {
             | CommandError::CouldNotGenerateParams(_)
             | CommandError::ReqwestError(_) => 1,
             CommandError::IoError(_, error) => error.raw_os_error().unwrap_or(1),
+            CommandError::TrashError(_, error) => match error {
+                trash::Error::Os {
+                    code,
+                    description: _,
+                } => *code,
+                _ => 1,
+            },
             CommandError::Cancelled => 130,
         }
     }
