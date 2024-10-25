@@ -372,7 +372,6 @@ where
 {
     let filepath = filepath.as_ref();
     let destination = destination.as_ref();
-    let mut counter = 0;
     match filepath.extension().unwrap().to_str().unwrap() {
         "xz" => {
             let total_size = filepath.metadata().unwrap().len();
@@ -417,9 +416,8 @@ where
                         ))
                     }
                 }
-                counter += 1;
-
-                if (counter == 100) && CANCELLED.load(Ordering::Acquire) {
+    
+                if CANCELLED.load(Ordering::Acquire) {
                     return Err(CommandError::Cancelled);
                 }
             }
@@ -450,7 +448,6 @@ where
             ppb.set_position(0);
 
             for name in archive.file_names().map(str::to_string).collect::<Vec<_>>() {
-                println!["{:?}", name];
                 let mut file = archive.by_name(&name).unwrap();
 
                 let file_path = file.enclosed_name().unwrap_or(file.mangled_name());
@@ -480,6 +477,10 @@ where
                 }
 
                 ppb.inc(file.size());
+
+                if CANCELLED.load(Ordering::Acquire) {
+                    return Err(CommandError::Cancelled);
+                }
             }
 
             Ok(true)
