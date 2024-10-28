@@ -1,5 +1,6 @@
 use blrs::{
     build_targets::{filter_repos_by_target, get_target_setup},
+    fetching::build_repository::BuildRepo,
     repos::{read_repos, BuildEntry, RepoEntry},
     BLRSConfig,
 };
@@ -73,9 +74,17 @@ pub fn list_builds(
         .map_err(|e| CommandError::IoError(IoErrorOrigin::ReadingRepos, e))?;
 
     all_repos.sort_by_cached_key(|r| match r {
-        RepoEntry::Registered(build_repo, vec) => build_repo.nickname.clone(),
-        RepoEntry::Unknown(s, vec) => s.clone(),
-        RepoEntry::Error(s, error) => s.clone(),
+        RepoEntry::Registered(
+            BuildRepo {
+                url: _,
+                nickname,
+                repo_id: _,
+                repo_type: _,
+            },
+            _,
+        )
+        | RepoEntry::Error(nickname, _)
+        | RepoEntry::Unknown(nickname, _) => nickname.clone(),
     });
 
     match ls_format {

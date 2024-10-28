@@ -270,7 +270,15 @@ async fn process_build(
         },
     };
 
-    lb.write().map_err(|e| error_writing(destination, e))?;
+    lb.write()
+        .map_err(|e| error_writing(destination.clone(), e))?;
+
+    // Delete archive file
+
+    ppb.set_message("Deleting temp file");
+    if trash::delete(&completed_filepath).is_err() {
+        std::fs::remove_file(completed_filepath).map_err(|e| error_writing(destination, e))?;
+    }
 
     ppb.finish();
 
