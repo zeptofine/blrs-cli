@@ -89,7 +89,11 @@ pub async fn pull_builds(
         .into_iter()
         // Check if any of the queries had multiple matches. If so, perform conflict resolution
         .filter_map(|(q, binfos)| {
-            resolve_match(q, &binfos.into_iter().collect::<Vec<_>>()).cloned()
+            resolve_match(
+                &binfos.into_iter().collect::<Vec<_>>(),
+                &format!["Multiple matches for query {q}! select a build to download"],
+            )
+            .cloned()
         })
         // Get variants of the chosen builds
         .map(|info: BasicBuildInfo| {

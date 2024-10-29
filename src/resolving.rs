@@ -43,10 +43,7 @@ where
 }
 
 // If necessary, prompt the user to select which build to download
-pub fn resolve_match<'a, B>(
-    q: &VersionSearchQuery,
-    matches: &'a [(B, RepoNickname)],
-) -> Option<&'a B>
+pub fn resolve_match<'a, B>(matches: &'a [(B, RepoNickname)], prompt: &str) -> Option<&'a B>
 where
     B: AsRef<BasicBuildInfo>,
 {
@@ -67,15 +64,9 @@ where
     let last_idx = choices.len() - 1;
 
     println![];
-    let inquiry = inquire::Select::new(
-        &format![
-            "Multiple matches detected for {}! select which one you want to download",
-            q
-        ],
-        choices,
-    )
-    .with_starting_cursor(last_idx)
-    .prompt();
+    let inquiry = inquire::Select::new(prompt, choices)
+        .with_starting_cursor(last_idx)
+        .prompt();
 
     match inquiry {
         Ok(s) => Some(choice_map[&s]),

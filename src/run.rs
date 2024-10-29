@@ -11,7 +11,7 @@ use blrs::{
     BLRSConfig,
 };
 
-use log::{debug, warn, info};
+use log::{debug, info, warn};
 
 use crate::{
     commands::RunCommand,
@@ -109,11 +109,15 @@ pub fn run(
             // Conflict found and can't resolve
             (0 | 2.., true) => return Err(CommandError::InvalidInput),
             // Conflict found and initial matches is empty
-            (0, false) => resolve_match(&query, &builds).cloned(),
+            (0, false) => resolve_match(
+                &builds,
+                &format!["No matches detected for query {query}! select a build"],
+            )
+            .cloned(),
             // Conflict found and there are initial matches
             (2.., false) => resolve_match(
-                &query,
                 &initial_matches.into_iter().cloned().collect::<Vec<_>>(),
+                &format!["Multiple matches for query {query}! select a build"],
             )
             .cloned(),
         }
