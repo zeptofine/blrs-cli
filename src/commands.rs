@@ -98,13 +98,12 @@ pub enum Command {
         #[command(subcommand)]
         command: Option<RunCommand>,
     },
-
-    /// Saves authentication data for github.
-    ///
-    /// This is useful for remote repositories based on github releases.
-    ///
-    /// WARNING! This is not encrypted and is readily available in your config location.
-    GithubAuth { user: String, token: String },
+    // /// Saves authentication data for github.
+    // ///
+    // /// This is useful for remote repositories based on github releases.
+    // ///
+    // /// WARNING! This is not encrypted and is readily available in your config location.
+    // GithubAuth { user: String, token: String },
 }
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
@@ -229,11 +228,10 @@ impl Command {
                 };
 
                 run::run(cfg, command, false).map(|_| vec![])
-            }
-            Command::GithubAuth { user, token } => {
-                let auth = GithubAuthentication { user, token };
-                Ok(vec![ConfigTask::UpdateGHAuth(auth)])
-            }
+            } // Command::GithubAuth { user, token } => {
+              //     let auth = GithubAuthentication { user, token };
+              //     Ok(vec![ConfigTask::UpdateGHAuth(auth)])
+              // }
         }
     }
 }
