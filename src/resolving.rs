@@ -78,9 +78,11 @@ pub fn resolve_variant(
     variants: Variants<RemoteBuild>,
     all_platforms: bool,
 ) -> Option<RemoteBuild> {
-    let (resolve_txt, variants) = if !all_platforms {
+    let (resolve_txt, variants) = if all_platforms {
+        ("Select which variant you want to download", variants)
+    } else {
         let mut v = variants.clone().filter_target(get_target_setup().unwrap());
-        v.v.sort_by_key(|variant| variant.to_string());
+        v.v.sort_by_key(BuildVariant::to_string);
 
         let v = if v.v.is_empty() { variants } else { v };
 
@@ -88,8 +90,6 @@ pub fn resolve_variant(
             "Failed to filter by platform! select which variant you want to download ",
             v,
         )
-    } else {
-        ("Select which variant you want to download", variants)
     };
 
     // Resolve -- prompt the user which one to download

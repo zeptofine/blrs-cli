@@ -7,7 +7,7 @@ use std::{
 use ansi_term as at;
 use blrs::{
     fetching::build_repository::BuildRepo,
-    repos::{BuildEntry, RepoEntry},
+    repos::{BuildEntry, BuildVariant, RepoEntry},
     search::VersionSearchQuery,
 };
 use chrono::{DateTime, TimeZone, Utc};
@@ -31,7 +31,7 @@ pub enum SortFormat {
     Datetime,
 }
 impl SortFormat {
-    pub fn sort(&self, v: &mut [BuildEntry]) {
+    pub fn sort(self, v: &mut [BuildEntry]) {
         match self {
             SortFormat::Version => v.sort_by_key(|e| match e {
                 BuildEntry::NotInstalled(remote_build) => (
@@ -73,18 +73,18 @@ impl SortFormat {
 
 #[derive(Debug)]
 pub struct BuildEntryTreeConstructor<'a>(pub &'a BuildEntry);
-impl<'a> BuildEntryTreeConstructor<'a> {
+impl BuildEntryTreeConstructor<'_> {
     fn to_tree(&self, show_variants: bool) -> tt::Tree<String> {
         let t = tt::Tree::new(self.to_string());
         match (self.0, show_variants) {
             (BuildEntry::NotInstalled(variants), true) => {
-                t.with_leaves(variants.v.iter().map(|var| var.to_string()))
+                t.with_leaves(variants.v.iter().map(BuildVariant::to_string))
             }
             _ => t,
         }
     }
 }
-impl<'a> Display for BuildEntryTreeConstructor<'a> {
+impl Display for BuildEntryTreeConstructor<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
             BuildEntry::NotInstalled(remote_builds) => write![
@@ -122,12 +122,11 @@ impl<'a> Display for BuildEntryTreeConstructor<'a> {
 
 #[derive(Debug)]
 pub struct RepoEntryTreeConstructor<'a>(pub &'a RepoEntry);
-impl<'a> RepoEntryTreeConstructor<'a> {
+impl RepoEntryTreeConstructor<'_> {
     pub fn to_tree(&self, show_variants: bool) -> tt::Tree<String> {
         let s = self.to_string();
         let leaves = match self.0 {
-            RepoEntry::Registered(_, vec) => vec,
-            RepoEntry::Unknown(_, vec) => vec,
+            RepoEntry::Registered(_, vec) | RepoEntry::Unknown(_, vec) => vec,
             RepoEntry::Error(_, _) => todo!(),
         };
 
@@ -138,7 +137,7 @@ impl<'a> RepoEntryTreeConstructor<'a> {
         )
     }
 }
-impl<'a> Display for RepoEntryTreeConstructor<'a> {
+impl Display for RepoEntryTreeConstructor<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
             RepoEntry::Registered(build_repo, builds) => {

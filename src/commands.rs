@@ -1,9 +1,6 @@
 use std::path::PathBuf;
 
-use blrs::{
-    config::FETCH_INTERVAL, fetching::authentication::GithubAuthentication,
-    search::VersionSearchQuery, BLRSConfig,
-};
+use blrs::{paths::FETCH_INTERVAL, search::VersionSearchQuery, BLRSConfig};
 use chrono::Utc;
 use clap::Subcommand;
 use log::{debug, info};
@@ -86,24 +83,9 @@ pub enum Command {
 
     /// Launch a build
     Run {
-        /// The version match or blendfile to open.
-        ///
-        /// Whether you intend it to be a version match or blendfile will be decided by
-        /// checking if it is parseable as a valid version search query.
-        /// If it is not, it is assumed you meant it to be a file.
-        /// There may be false positives in the matcher parser if you name
-        /// your blendfiles weirdly.
-        query: Option<String>,
-
         #[command(subcommand)]
-        command: Option<RunCommand>,
+        command: RunCommand,
     },
-    // /// Saves authentication data for github.
-    // ///
-    // /// This is useful for remote repositories based on github releases.
-    // ///
-    // /// WARNING! This is not encrypted and is readily available in your config location.
-    // GithubAuth { user: String, token: String },
 }
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
@@ -113,10 +95,10 @@ pub enum RunCommand {
 
     /// Launch a specific build of blender
     Build {
-        build_or_file: Option<String>,
+        build: Option<String>,
 
-        #[arg(short, long)]
-        open_last: bool,
+        #[arg(raw(true))]
+        args: Vec<String>,
     },
 }
 
@@ -207,31 +189,10 @@ impl Command {
                 variants,
                 all_builds,
             )
-            .map(|_| vec![]),
-            Command::Run { query, mut command } => {
-                if let Some(q) = query {
-                    if let Ok(q) = VersionSearchQuery::try_from(q.as_str()) {
-                        command = Some(RunCommand::Build {
-                            build_or_file: Some(q.to_string()),
-                            open_last: false,
-                        });
-                    } else {
-                        command = Some(RunCommand::File {
-                            path: PathBuf::from(q),
-                        });
-                    }
-                }
-
-                let command = match command {
-                    Some(c) => c,
-                    None => return Err(CommandError::NotEnoughInput),
-                };
-
+            .map(|()| vec![]),
+            Command::Run { command } => {
                 run::run(cfg, command, false).map(|_| vec![])
-            } // Command::GithubAuth { user, token } => {
-              //     let auth = GithubAuthentication { user, token };
-              //     Ok(vec![ConfigTask::UpdateGHAuth(auth)])
-              // }
+            }
         }
     }
 }

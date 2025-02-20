@@ -28,17 +28,14 @@ pub async fn fetch(
         .iter()
         .map(|repo| async {
             let url = repo.url();
-            let client = cfg
-                .client_builder(url.domain().is_some_and(|h| h.contains("api.github.com")))
-                .build()
-                .unwrap();
+            let client = cfg.client_builder().build().unwrap();
 
             info!["Fetching from {}", url];
             let r = fetch_repo(client, repo.clone()).await;
 
             let filename = repos_folder.join(repo.repo_id.clone() + ".json");
 
-            _process_result(filename, r).await
+            process_result_(filename, r).await
         })
         .collect::<Vec<_>>();
 
@@ -60,7 +57,7 @@ pub async fn fetch(
                 .map(|_| ConfigTask::UpdateLastTimeChecked)
         }
     } else {
-        for action in actions.into_iter() {
+        for action in actions {
             let r = action.await.map(|_| ConfigTask::UpdateLastTimeChecked);
 
             if r.is_err() {
@@ -76,7 +73,7 @@ pub async fn fetch(
     }
 }
 
-async fn _process_result(
+async fn process_result_(
     filename: PathBuf,
     r: Result<Vec<BlenderBuildSchema>, FetchError>,
 ) -> Result<(), std::io::Error> {

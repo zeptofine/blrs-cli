@@ -10,11 +10,8 @@ use crate::{commands::Command, errs::CommandError, tasks::ConfigTask};
 #[derive(Parser, Debug, Clone, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
-    /// Alias of blrs-cli launch.
-    pub build_or_file: Option<String>,
-
     #[command(subcommand)]
-    pub commands: Option<Command>,
+    pub commands: Command,
 
     /// Override the path to the library.
     #[arg(short, long)]
@@ -24,11 +21,11 @@ pub struct Cli {
 impl Cli {
     pub fn apply_overrides(&self, config: &mut BLRSConfig) {
         if let Some(pth) = &self.library {
-            config.paths.library = pth.clone()
+            config.paths.library.clone_from(pth);
         }
     }
 
     pub fn eval(self, cfg: &BLRSConfig) -> Result<Vec<ConfigTask>, CommandError> {
-        self.commands.unwrap().eval(cfg)
+        self.commands.eval(cfg)
     }
 }

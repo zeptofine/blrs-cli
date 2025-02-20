@@ -24,7 +24,7 @@ use uuid::Uuid;
 use xz::read::XzDecoder;
 use zip::ZipArchive;
 
-use crate::errs::{error_reading, error_renaming, error_writing, CommandError, IoErrorOrigin};
+use crate::errs::{CommandError as CE, IoErrorOrigin};
 use crate::resolving::{resolve_match, resolve_variant};
 
 pub static CANCELLED: LazyLock<Arc<AtomicBool>> =
@@ -34,13 +34,13 @@ pub async fn pull_builds(
     cfg: &BLRSConfig,
     queries: Vec<VersionSearchQuery>,
     all_platforms: bool,
-) -> Result<(), CommandError> {
+) -> Result<(), CE> {
     std::fs::create_dir_all(&cfg.paths.library)
         .inspect_err(|e| error!("Failed to create library path: {:?}", e))
-        .map_err(|e| error_writing(cfg.paths.library.clone(), e))?;
+        .map_err(CE::writing(cfg.paths.library.clone()))?;
 
-    let repos: Vec<_> = read_repos(cfg.repos.clone(), &cfg.paths, false)
-        .map_err(|e| CommandError::IoError(IoErrorOrigin::ReadingRepos, e))?
+    let repos: Vec<_> = read_repos(&cfg.repos, &cfg.paths, false)
+        .map_err(|e| CE::IoError(IoErrorOrigin::ReadingRepos, e))?
         .into_iter()
         .filter_map(|r| match r {
             RepoEntry::Registered(repo, vec) => {
@@ -68,7 +68,7 @@ pub async fn pull_builds(
         .collect();
 
     let matcher = BInfoMatcher::new(&builds);
-    let matches: Vec<(&VersionSearchQuery, Vec<(BasicBuildInfo, String)>)> = {
+    let version_matches: Vec<(&VersionSearchQuery, Vec<(BasicBuildInfo, String)>)> = {
         queries
             .iter()
             .map(|q| (q, matcher.find_all(q).into_iter().cloned().collect()))
@@ -76,16 +76,16 @@ pub async fn pull_builds(
     };
 
     // Check if any of the queries have no matches
-    let empty_matches: Vec<_> = matches
+    let empty_matches: Vec<_> = version_matches
         .iter()
         .filter_map(|(q, v)| v.is_empty().then_some(format!["{q}"]))
         .collect();
     if !empty_matches.is_empty() {
-        return Err(CommandError::QueryResultEmpty(empty_matches.join(", ")));
+        return Err(CE::QueryResultEmpty(empty_matches.join(", ")));
     }
 
     // Get builds selected to download
-    let choices = matches
+    let choices = version_matches
         .into_iter()
         // Check if any of the queries had multiple matches. If so, perform conflict resolution
         .filter_map(|(q, binfos)| {
@@ -120,7 +120,7 @@ pub async fn pull_builds(
         .with_key(
             "eta",
             |state: &ProgressState, w: &mut dyn std::fmt::Write| {
-                write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap()
+                write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap();
             },
         )
         .progress_chars("#|-");
@@ -135,16 +135,16 @@ pub async fn pull_builds(
         .map(|(remote_build, repo)| {
             let url = remote_build.url();
             let extension = remote_build.file_extension.clone().unwrap_or_default();
-            let filename = PathBuf::from(url.path())
-                .file_name()
-                .map(|name| name.to_os_string())
-                .unwrap_or_else(|| {
+            let filename = PathBuf::from(url.path()).file_name().map_or_else(
+                || {
                     // Fallback to a generated name
                     PathBuf::from(Uuid::new_v4().to_string())
                         .with_extension(extension.clone())
                         .as_os_str()
                         .to_os_string()
-                });
+                },
+                |name| name.to_os_string(),
+            );
 
             let repo_path = cfg.paths.path_to_repo(repo);
 
@@ -174,7 +174,7 @@ pub async fn pull_builds(
         .iter()
         .map(|(_, temp, finished)| (temp.clone(), finished.clone()))
         .collect();
-    let result: Vec<Result<(), CommandError>> =
+    let result: Vec<Result<(), CE>> =
         futures::future::join_all(setups.into_iter().map(|(fut, _, _)| fut))
             .await
             .into_iter()
@@ -233,12 +233,9 @@ async fn process_build(
     temporary_filepath: PathBuf,
     completed_filepath: PathBuf,
     destination: PathBuf,
-) -> Result<(), CommandError> {
+) -> Result<(), CE> {
     if !completed_filepath.exists() {
-        let client = cfg
-            .client_builder(url.domain().is_some_and(|h| h.contains("api.github.com")))
-            .build()
-            .unwrap();
+        let client = cfg.client_builder().build().unwrap();
 
         ppb.set_message(format!["Downloading file {}", url]);
 
@@ -249,7 +246,7 @@ async fn process_build(
     ppb.set_message(format!["Extracting file {}", completed_filepath.display()]);
     let success = extract_file(&ppb, &completed_filepath, &destination).await?;
     if !success {
-        return Err(CommandError::UnsupportedFileFormat(
+        return Err(CE::UnsupportedFileFormat(
             completed_filepath
                 .extension()
                 .unwrap()
@@ -274,14 +271,13 @@ async fn process_build(
         },
     };
 
-    lb.write()
-        .map_err(|e| error_writing(destination.clone(), e))?;
+    lb.write().map_err(CE::writing(destination.clone()))?;
 
     // Delete archive file
 
     ppb.set_message("Deleting temp file");
     if trash::delete(&completed_filepath).is_err() {
-        std::fs::remove_file(completed_filepath).map_err(|e| error_writing(destination, e))?;
+        std::fs::remove_file(completed_filepath).map_err(CE::writing(destination))?;
     }
 
     ppb.finish();
@@ -295,14 +291,14 @@ async fn download_file(
     url: Url,
     temporary_filepath: &Path,
     completed_filepath: &Path,
-) -> Result<(), CommandError> {
+) -> Result<(), CE> {
     // Make sure the temporary filepath exists
     std::fs::create_dir_all(temporary_filepath.parent().unwrap())
-        .map_err(|e| error_writing(temporary_filepath.parent().unwrap().into(), e))?;
+        .map_err(CE::writing(temporary_filepath.parent().unwrap().into()))?;
 
     let mut file = async_std::fs::File::create(&temporary_filepath)
         .await
-        .map_err(|e| error_writing(temporary_filepath.into(), e))?;
+        .map_err(CE::writing(temporary_filepath.into()))?;
 
     let mut state = FetchStreamerState::new(client, url);
 
@@ -329,25 +325,26 @@ async fn download_file(
 
                 file.write_all(last_chunk)
                     .await
-                    .map_err(|e| error_writing(temporary_filepath.into(), e))?;
+                    .map_err(CE::writing(temporary_filepath.into()))?;
             }
             FetchStreamerState::Finished { response } => {
                 if !response.status().is_success() {
-                    return Err(CommandError::ReturnCode(response.status()));
+                    return Err(CE::ReturnCode(response.status()));
                 }
 
                 file.flush()
                     .await
-                    .map_err(|e| error_writing(temporary_filepath.into(), e))?;
+                    .map_err(CE::writing(temporary_filepath.into()))?;
                 file.close()
                     .await
-                    .map_err(|e| error_writing(temporary_filepath.into(), e))?;
+                    .map_err(CE::writing(temporary_filepath.into()))?;
 
                 async_std::fs::rename(&temporary_filepath, &completed_filepath)
                     .await
-                    .map_err(|e| {
-                        error_renaming(temporary_filepath.into(), completed_filepath.into(), e)
-                    })?;
+                    .map_err(CE::renaming(
+                        temporary_filepath.into(),
+                        completed_filepath.into(),
+                    ))?;
 
                 break;
             }
@@ -361,23 +358,19 @@ async fn download_file(
             drop(state);
             drop(file);
 
-            return Err(CommandError::Cancelled);
+            return Err(CE::Cancelled);
         }
     }
 
     // Moved out of the loop to gain ownership of the error
     if let FetchStreamerState::Err(error) = state {
-        Err(CommandError::ReqwestError(error))
+        Err(CE::ReqwestError(error))
     } else {
         Ok(())
     }
 }
 
-async fn extract_file<P>(
-    ppb: &ProgressBar,
-    filepath: P,
-    destination: P,
-) -> Result<bool, CommandError>
+async fn extract_file<P>(ppb: &ProgressBar, filepath: P, destination: P) -> Result<bool, CE>
 where
     P: AsRef<Path>,
 {
@@ -389,15 +382,10 @@ where
             ppb.set_length(total_size);
             ppb.set_position(0);
 
-            let file = XzDecoder::new(
-                File::open(filepath).map_err(|e| error_reading(filepath.into(), e))?,
-            );
+            let file = XzDecoder::new(File::open(filepath).map_err(CE::reading(filepath.into()))?);
             let mut archive = Archive::new(file);
 
-            for entry in archive
-                .entries()
-                .map_err(|e| error_reading(filepath.into(), e))?
-            {
+            for entry in archive.entries().map_err(CE::reading(filepath.into()))? {
                 match entry {
                     Ok(mut entry) => {
                         let unpacked_size = entry.size();
@@ -415,13 +403,13 @@ where
                         let parent_path = pth.parent().unwrap();
                         async_std::fs::create_dir_all(parent_path)
                             .await
-                            .map_err(|e| error_writing(parent_path.into(), e))?;
-                        entry.unpack(&pth).map_err(|e| error_writing(pth, e))?;
+                            .map_err(CE::writing(parent_path.into()))?;
+                        entry.unpack(&pth).map_err(CE::writing(pth))?;
 
                         ppb.inc(unpacked_size);
                     }
                     Err(e) => {
-                        return Err(CommandError::IoError(
+                        return Err(CE::IoError(
                             IoErrorOrigin::WritingObject(filepath.into()),
                             e,
                         ))
@@ -429,7 +417,7 @@ where
                 }
 
                 if CANCELLED.load(Ordering::Acquire) {
-                    return Err(CommandError::Cancelled);
+                    return Err(CE::Cancelled);
                 }
             }
 
@@ -437,24 +425,24 @@ where
         }
         // TODO:
         "zip" => {
-            let mut archive = ZipArchive::new(
-                File::open(filepath).map_err(|e| error_reading(filepath.into(), e))?,
-            )
-            .map_err(|e| match e {
-                zip::result::ZipError::Io(error) => error_reading(filepath.to_path_buf(), error),
-                zip::result::ZipError::InvalidArchive(e)
-                | zip::result::ZipError::UnsupportedArchive(e) => {
-                    CommandError::BrokenArchive(filepath.to_path_buf(), e)
-                }
-                zip::result::ZipError::FileNotFound => todo!(),
-                zip::result::ZipError::InvalidPassword => todo!(),
-                _ => todo!(),
-            })?;
+            let mut archive =
+                ZipArchive::new(File::open(filepath).map_err(CE::reading(filepath.into()))?)
+                    .map_err(|e| match e {
+                        zip::result::ZipError::Io(error) => {
+                            CE::reading(filepath.to_path_buf())(error)
+                        }
+                        zip::result::ZipError::InvalidArchive(e)
+                        | zip::result::ZipError::UnsupportedArchive(e) => {
+                            CE::BrokenArchive(filepath.to_path_buf(), e)
+                        }
+                        zip::result::ZipError::FileNotFound => todo!(),
+                        zip::result::ZipError::InvalidPassword => todo!(),
+                        _ => todo!(),
+                    })?;
 
             let total_size = archive
                 .decompressed_size()
-                .map(|n| n as u64)
-                .unwrap_or_else(|| filepath.metadata().unwrap().len());
+                .map_or_else(|| filepath.metadata().unwrap().len(), |n| n as u64);
             ppb.set_length(total_size);
             ppb.set_position(0);
 
@@ -472,25 +460,22 @@ where
                 if file.is_dir() {
                     async_std::fs::create_dir_all(&pth)
                         .await
-                        .map_err(|e| error_writing(pth.clone(), e))?;
+                        .map_err(CE::writing(pth.clone()))?;
                 } else {
                     {
-                        let mut extracted_file = std::fs::File::create(&pth)
-                            .map_err(|e| error_writing(pth.clone(), e))?;
+                        let mut extracted_file =
+                            std::fs::File::create(&pth).map_err(CE::writing(pth.clone()))?;
 
                         let mut v = Vec::with_capacity(file.size() as usize);
-                        file.read_to_end(&mut v)
-                            .map_err(|e| error_writing(pth.clone(), e))?;
-                        extracted_file
-                            .write_all(&v)
-                            .map_err(|e| error_writing(pth, e))?;
+                        file.read_to_end(&mut v).map_err(CE::writing(pth.clone()))?;
+                        extracted_file.write_all(&v).map_err(CE::writing(pth))?;
                     }
                 }
 
                 ppb.inc(file.size());
 
                 if CANCELLED.load(Ordering::Acquire) {
-                    return Err(CommandError::Cancelled);
+                    return Err(CE::Cancelled);
                 }
             }
 
@@ -501,17 +486,17 @@ where
             println!["DETECTED DMG FILE {:?}", filepath];
             todo!();
         }
-        ext => Err(CommandError::UnsupportedFileFormat(ext.to_string())),
+        ext => Err(CE::UnsupportedFileFormat(ext.to_string())),
     }
 }
 
 /// Prompt the user to delete files after cancellation of pulling
-fn prompt_deletions(result: Vec<Result<(), CommandError>>, targets: Vec<(PathBuf, PathBuf)>) {
+fn prompt_deletions(result: Vec<Result<(), CE>>, targets: Vec<(PathBuf, PathBuf)>) {
     result
         .into_iter()
         .zip(targets)
         .for_each(|(result, (temp, finished))| {
-            if let Err(CommandError::Cancelled) = result {
+            if let Err(CE::Cancelled) = result {
                 if temp.exists() {
                     let s = format![
                         "Cancelled during downloading of {}. Do you wish to delete it?",
@@ -542,7 +527,7 @@ fn prompt_deletions(result: Vec<Result<(), CommandError>>, targets: Vec<(PathBuf
                             info!["Deleting {:?}...", finished];
 
                             match std::fs::remove_file(&finished) {
-                                Ok(_) => info!["Success."],
+                                Ok(()) => info!["Success."],
                                 Err(e) => warn!["Failed to delete {:?}! {:?}", finished, e],
                             }
                         }

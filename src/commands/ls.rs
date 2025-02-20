@@ -9,7 +9,7 @@ use log::{debug, error};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    errs::{error_writing, CommandError, IoErrorOrigin},
+    errs::{CommandError as CE, IoErrorOrigin},
     repo_formatting::{RepoEntryTreeConstructor, SortFormat},
 };
 
@@ -32,20 +32,20 @@ fn gather_and_filter_repos(
     all_builds: bool,
     sort_format: Option<SortFormat>,
 ) -> Result<Vec<RepoEntry>, std::io::Error> {
-    let mut repos = read_repos(cfg.repos.clone(), &cfg.paths, installed_only)?;
+    let mut repos = read_repos(&cfg.repos, &cfg.paths, installed_only)?;
     debug!("Finished reading repos");
-    repos = if !all_builds {
+    repos = if all_builds {
+        repos
+    } else {
         let target = get_target_setup().unwrap();
         debug!["filtering list of builds by the target: {:?}", target];
         filter_repos_by_target(repos, Some(target))
-    } else {
-        repos
     };
 
     if installed_only {
-        repos.retain(|r| r.has_installed_builds())
+        repos.retain(RepoEntry::has_installed_builds);
     } else {
-        repos.sort_by_key(|r| r.has_installed_builds());
+        repos.sort_by_cached_key(RepoEntry::has_installed_builds);
     }
 
     if let Some(sort_format) = sort_format {
@@ -54,6 +54,8 @@ fn gather_and_filter_repos(
             RepoEntry::Error(_, _) => {}
         });
     }
+
+    debug!["Successfully gathered repos."];
 
     Ok(repos)
 }
@@ -65,24 +67,16 @@ pub fn list_builds(
     installed_only: bool,
     show_variants: bool,
     all_builds: bool,
-) -> Result<(), CommandError> {
+) -> Result<(), CE> {
     std::fs::create_dir_all(&cfg.paths.library)
         .inspect_err(|e| error!("Failed to create library path: {:?}", e))
-        .map_err(|e| error_writing(cfg.paths.library.clone(), e))?;
+        .map_err(CE::writing(cfg.paths.library.clone()))?;
 
     let mut all_repos = gather_and_filter_repos(cfg, installed_only, all_builds, Some(sort_format))
-        .map_err(|e| CommandError::IoError(IoErrorOrigin::ReadingRepos, e))?;
+        .map_err(|e| CE::IoError(IoErrorOrigin::ReadingRepos, e))?;
 
     all_repos.sort_by_cached_key(|r| match r {
-        RepoEntry::Registered(
-            BuildRepo {
-                url: _,
-                nickname,
-                repo_id: _,
-                repo_type: _,
-            },
-            _,
-        )
+        RepoEntry::Registered(BuildRepo { nickname, .. }, _)
         | RepoEntry::Error(nickname, _)
         | RepoEntry::Unknown(nickname, _) => nickname.clone(),
     });
@@ -96,11 +90,11 @@ pub fn list_builds(
         LsFormat::Paths => {
             all_repos.into_iter().for_each(|repo| match repo {
                 RepoEntry::Registered(_, vec) | RepoEntry::Unknown(_, vec) => {
-                    vec.into_iter().for_each(|build| {
+                    for build in vec {
                         if let BuildEntry::Installed(_, local_build) = build {
                             println!["{}", local_build.folder.display()];
                         }
-                    });
+                    }
                 }
                 RepoEntry::Error(_, _) => {}
             });

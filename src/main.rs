@@ -1,11 +1,10 @@
 use std::io::Write;
 
 use ansi_term::Color;
-use blrs::config::{BLRSConfig, PROJECT_DIRS};
-use clap::{CommandFactory, Parser};
+use blrs::{config::BLRSConfig, PROJECT_DIRS};
+use clap::Parser;
 
 use cli_args::Cli;
-use commands::Command;
 use log::{debug, error};
 
 mod cli_args;
@@ -22,7 +21,7 @@ fn main() -> Result<(), std::io::Error> {
 
     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
 
-    let mut cli = Cli::parse();
+    let cli = Cli::parse();
 
     let cfgfigment = BLRSConfig::default_figment(None);
     let mut cfg: BLRSConfig = cfgfigment.extract().unwrap();
@@ -30,26 +29,6 @@ fn main() -> Result<(), std::io::Error> {
 
     debug!("{cli:?}");
     debug!("{cfg:?}");
-
-    match (&cli.build_or_file, &cli.commands) {
-        (None, None) => {
-            return Cli::command().print_help();
-        }
-        // TODO: If possible, implement this using the Clap derive system
-        (Some(_), Some(_)) => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Unsupported,
-                "Specifying a file and a subcommand at the same time is not supported",
-            ));
-        }
-        (Some(query), None) => {
-            cli.commands = Some(Command::Run {
-                query: Some(query.to_string()),
-                command: None,
-            });
-        }
-        (None, Some(_)) => {}
-    }
 
     let r = cli.eval(&cfg);
 

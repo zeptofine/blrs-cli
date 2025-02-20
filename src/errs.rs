@@ -43,7 +43,7 @@ pub enum CommandError {
     FetchingTooFast { remaining: i64 },
     #[error("Error making a request: {0:?}")]
     ReqwestError(reqwest::Error),
-    #[error("request returned code {0:?}: {:?}", .0.canonical_reason())]
+    #[error("request returned code {0:?}: {reason:?}", reason=.0.canonical_reason())]
     ReturnCode(StatusCode),
     #[error("Unsupported file format: {0:?}")]
     UnsupportedFileFormat(String),
@@ -83,14 +83,15 @@ impl CommandError {
             CommandError::Cancelled => 130,
         }
     }
-}
 
-pub fn error_reading(p: PathBuf, e: std::io::Error) -> CommandError {
-    CommandError::IoError(IoErrorOrigin::ReadingObject(p), e)
-}
-pub fn error_writing(p: PathBuf, e: std::io::Error) -> CommandError {
-    CommandError::IoError(IoErrorOrigin::WritingObject(p), e)
-}
-pub fn error_renaming(p: PathBuf, p2: PathBuf, e: std::io::Error) -> CommandError {
-    CommandError::IoError(IoErrorOrigin::RenamingObject(p, p2), e)
+    pub fn reading(p: PathBuf) -> impl FnOnce(std::io::Error) -> CommandError {
+        |e| CommandError::IoError(IoErrorOrigin::ReadingObject(p), e)
+    }
+
+    pub fn writing(p: PathBuf) -> impl FnOnce(std::io::Error) -> CommandError {
+        |e| CommandError::IoError(IoErrorOrigin::WritingObject(p), e)
+    }
+    pub fn renaming(p: PathBuf, p2: PathBuf) -> impl FnOnce(std::io::Error) -> CommandError {
+        |e| CommandError::IoError(IoErrorOrigin::RenamingObject(p, p2), e)
+    }
 }
