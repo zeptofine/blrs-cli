@@ -8,10 +8,7 @@ use blrs::{
 };
 use log::{error, info};
 
-use crate::{
-    errs::CommandError as CE,
-    resolving::get_choice_map,
-};
+use crate::{errs::CommandError as CE, resolving::get_choice_map};
 
 pub fn remove_builds(
     cfg: &BLRSConfig,
@@ -50,13 +47,14 @@ pub fn remove_builds(
         .flat_map(|v| v.0.into_iter().map(move |b| (b, v.1.clone())))
         .collect();
 
-    let matcher = BInfoMatcher::new(&local_builds);
-
-    let matched_builds: Vec<(LocalBuild, _)> = queries
-        .into_iter()
-        .flat_map(|query| matcher.find_all(&query))
-        .cloned()
-        .collect();
+    let matched_builds: Vec<(LocalBuild, _)> = {
+        let matcher = BInfoMatcher::new(&local_builds);
+        queries
+            .into_iter()
+            .flat_map(|query| matcher.find_all(&query))
+            .cloned()
+            .collect()
+    };
 
     let choice_map: HashMap<String, &LocalBuild> = get_choice_map(&matched_builds);
 

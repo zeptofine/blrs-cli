@@ -5,7 +5,7 @@ use blrs::config::BLRSConfig;
 use clap::{arg, Parser};
 use serde::{Deserialize, Serialize};
 
-use crate::{commands::Command, errs::CommandError, tasks::ConfigTask};
+use crate::{commands::{Command, CompletionResult}, errs::CommandError};
 
 #[derive(Parser, Debug, Clone, Serialize, Deserialize)]
 #[command(version, about, long_about = None)]
@@ -25,7 +25,7 @@ impl Cli {
         }
     }
 
-    pub fn eval(self, cfg: &BLRSConfig) -> Result<Vec<ConfigTask>, CommandError> {
+    pub fn eval(self, cfg: &BLRSConfig) -> Result<CompletionResult, CommandError> {
         self.commands.eval(cfg)
     }
 }

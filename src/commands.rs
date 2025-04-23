@@ -26,8 +26,8 @@ pub enum Command {
     Fetch {
         /// Ignore fetch timeouts.
         #[arg(short, long)]
-        /// Runs fetching from repos in parallel using async features. Can trigger ratelimits if used recklessly.
         force: bool,
+        /// Runs fetching from repos in parallel using async features. Can trigger ratelimits if used recklessly.
         #[arg(short, long)]
         parallel: bool,
 
@@ -87,6 +87,28 @@ pub enum Command {
         command: RunCommand,
     },
 }
+#[derive(Debug, Clone)]
+pub enum CompletionResult {
+    ConfigTasks(Vec<ConfigTask>),
+    ExitCode(i32),
+}
+impl Default for CompletionResult {
+    fn default() -> Self {
+        CompletionResult::ConfigTasks(vec![])
+    }
+}
+
+impl From<Vec<ConfigTask>> for CompletionResult {
+    fn from(value: Vec<ConfigTask>) -> Self {
+        CompletionResult::ConfigTasks(value)
+    }
+}
+
+impl From<i32> for CompletionResult {
+    fn from(v: i32) -> Self {
+        Self::ExitCode(v)
+    }
+}
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
 pub enum RunCommand {
@@ -103,7 +125,7 @@ pub enum RunCommand {
 }
 
 impl Command {
-    pub fn eval(self, cfg: &BLRSConfig) -> Result<Vec<ConfigTask>, CommandError> {
+    pub fn eval(self, cfg: &BLRSConfig) -> Result<CompletionResult, CommandError> {
         match self {
             Command::Fetch {
                 force,
@@ -131,7 +153,7 @@ impl Command {
                     }
 
                     result
-                        .map(|v| vec![v])
+                        .map(|v| vec![v].into())
                         .map_err(|e| CommandError::IoError(IoErrorOrigin::Fetching, e))
                 } else {
                     let time_remaining = ready_time - Utc::now();
@@ -140,7 +162,7 @@ impl Command {
                     })
                 }
             }
-            Command::Verify { repos } => verify::verify(cfg, repos).map(|_| vec![]),
+            Command::Verify { repos } => verify::verify(cfg, repos).map(|()| vec![].into()),
             Command::Pull {
                 queries,
                 all_platforms,
@@ -165,7 +187,7 @@ impl Command {
                                 .bold()
                                 .paint("Downloading builds finished successfully")
                         ];
-                        Ok(vec![])
+                        Ok(vec![].into())
                     }
                     Err(e) => Err(e),
                 }
@@ -173,7 +195,7 @@ impl Command {
             Command::Rm { queries, no_trash } => {
                 let queries = strings_to_queries(queries)?;
 
-                rm::remove_builds(cfg, queries, no_trash).map(|_| vec![])
+                rm::remove_builds(cfg, queries, no_trash).map(|_| vec![].into())
             }
             Command::Ls {
                 format,
@@ -189,9 +211,9 @@ impl Command {
                 variants,
                 all_builds,
             )
-            .map(|()| vec![]),
+            .map(|()| vec![].into()),
             Command::Run { command } => {
-                run::run(cfg, command, false).map(|_| vec![])
+                run::run(cfg, command, false).map(|exit_code| exit_code.into())
             }
         }
     }

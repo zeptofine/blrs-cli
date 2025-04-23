@@ -20,7 +20,7 @@ pub enum IoErrorOrigin {
 pub enum CommandError {
     #[error(
         "Could not parse query {0:?}: {1:?}
-    Query syntax: [repo/]<major>.<minor>.<patch>[-<branch>][[+ or #]<build_hash>][@<commit time>]
+    Query syntax: [repo/]<major>.<minor>[.<patch>][-<branch>][[+ or #]<build_hash>][@<commit time>]
     The major, minor, and patch numbers can be integers, or one of these:
     - `^`    | Match the largest/newest item
     - `*`    | Match any item
@@ -39,7 +39,9 @@ pub enum CommandError {
     QueryResultEmpty(String),
     #[error("No query has been given but is required")]
     MissingQuery,
-    #[error("Insufficient time has passed since the last fetch. It is unlikely that new builds will be available, and to conserve requests these will be skipped.\nWait for {remaining}s")]
+    #[error(
+        "Insufficient time has passed since the last fetch. It is unlikely that new builds will be available, and to conserve requests these will be skipped.\nWait for {remaining}s"
+    )]
     FetchingTooFast { remaining: i64 },
     #[error("Error making a request: {0:?}")]
     ReqwestError(reqwest::Error),
@@ -55,7 +57,7 @@ pub enum CommandError {
     #[error("IO Error from {0:?}:  {1:?}")]
     IoError(IoErrorOrigin, std::io::Error),
     #[error("Broken archive {0:?}:  {1:?}")]
-    BrokenArchive(PathBuf, &'static str),
+    BrokenArchive(PathBuf, String),
 }
 
 impl CommandError {

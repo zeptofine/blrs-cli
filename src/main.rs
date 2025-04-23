@@ -5,6 +5,7 @@ use blrs::{config::BLRSConfig, PROJECT_DIRS};
 use clap::Parser;
 
 use cli_args::Cli;
+use commands::CompletionResult;
 use log::{debug, error};
 
 mod cli_args;
@@ -33,7 +34,8 @@ fn main() -> Result<(), std::io::Error> {
     let r = cli.eval(&cfg);
 
     let tasks = match r {
-        Ok(b) => b,
+        Ok(CompletionResult::ConfigTasks(t)) => t,
+        Ok(CompletionResult::ExitCode(e)) => std::process::exit(e),
         Err(e) => {
             error![
                 "\n{}\n    {}",

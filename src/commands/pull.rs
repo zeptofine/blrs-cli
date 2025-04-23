@@ -113,8 +113,7 @@ pub async fn pull_builds(
 
     // ? Progress bar styling
     let pb = MultiProgress::new();
-    let template =
-        "{spinner:.green} [{elapsed_precise} (ETA {eta})] [{bar:40.cyan/red}] {bytes}/{total_bytes} {msg:.green}";
+    let template = "{spinner:.green} [{elapsed_precise} (ETA {eta})] [{bar:40.cyan/red}] {bytes}/{total_bytes} {msg:.green}";
     let pbstyle = ProgressStyle::with_template(template)
         .unwrap()
         .with_key(
@@ -363,10 +362,9 @@ async fn download_file(
     }
 
     // Moved out of the loop to gain ownership of the error
-    if let FetchStreamerState::Err(error) = state {
-        Err(CE::ReqwestError(error))
-    } else {
-        Ok(())
+    match state {
+        FetchStreamerState::Err(error) => Err(CE::ReqwestError(error)),
+        _ => Ok(()),
     }
 }
 
@@ -412,7 +410,7 @@ where
                         return Err(CE::IoError(
                             IoErrorOrigin::WritingObject(filepath.into()),
                             e,
-                        ))
+                        ));
                     }
                 }
 
@@ -423,7 +421,6 @@ where
 
             Ok(true)
         }
-        // TODO:
         "zip" => {
             let mut archive =
                 ZipArchive::new(File::open(filepath).map_err(CE::reading(filepath.into()))?)
@@ -431,9 +428,11 @@ where
                         zip::result::ZipError::Io(error) => {
                             CE::reading(filepath.to_path_buf())(error)
                         }
-                        zip::result::ZipError::InvalidArchive(e)
-                        | zip::result::ZipError::UnsupportedArchive(e) => {
-                            CE::BrokenArchive(filepath.to_path_buf(), e)
+                        zip::result::ZipError::InvalidArchive(e) => {
+                            CE::BrokenArchive(filepath.to_path_buf(), e.to_string())
+                        }
+                        zip::result::ZipError::UnsupportedArchive(e) => {
+                            CE::BrokenArchive(filepath.to_path_buf(), e.to_string())
                         }
                         zip::result::ZipError::FileNotFound => todo!(),
                         zip::result::ZipError::InvalidPassword => todo!(),
@@ -481,7 +480,6 @@ where
 
             Ok(true)
         }
-        // TODO:
         "dmg" => {
             println!["DETECTED DMG FILE {:?}", filepath];
             todo!();
