@@ -36,6 +36,10 @@ cargo install blrs-cli --git https://github.com/zeptofine/blrs-cli
 
 ## Usage
 
+The program automatically generates a config file at `~/.config/blrs/config.toml` for linux, and `%LOCALAPPDATA%/zeptofine/blrs/config/config.toml` for Windows.
+
+In there, you can customize the library path, repo cache placement, and individual repo's settings and sources.
+
 This project uses a specific query syntax to identify and filter out builds:
 ```
 [repo/]<major>.<minor>[.<patch>][-<branch>][[+ or #]<build_hash>][@<commit time>]
