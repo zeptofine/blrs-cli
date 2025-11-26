@@ -31,7 +31,7 @@ fn gather_and_filter_repos(
     installed_only: bool,
     all_builds: bool,
     sort_format: Option<SortFormat>,
-) -> Result<Vec<RepoEntry>, std::io::Error> {
+) -> Result<Vec<RepoEntry<'_>>, std::io::Error> {
     let mut repos = read_repos(&cfg.repos, &cfg.paths, installed_only)?;
     debug!("Finished reading repos");
     repos = if all_builds {
@@ -70,7 +70,7 @@ pub fn list_builds(
 ) -> Result<(), CE> {
     std::fs::create_dir_all(&cfg.paths.library)
         .inspect_err(|e| error!("Failed to create library path: {:?}", e))
-        .map_err(CE::writing(cfg.paths.library.clone()))?;
+        .map_err(CE::writing(&cfg.paths.library))?;
 
     let mut all_repos = gather_and_filter_repos(cfg, installed_only, all_builds, Some(sort_format))
         .map_err(|e| CE::IoError(IoErrorOrigin::ReadingRepos, e))?;

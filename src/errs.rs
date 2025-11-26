@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use blrs::{info::launching::ArgGenerationError, search::FromError};
 use reqwest::StatusCode;
@@ -86,14 +86,21 @@ impl CommandError {
         }
     }
 
-    pub fn reading(p: PathBuf) -> impl FnOnce(std::io::Error) -> CommandError {
-        |e| CommandError::IoError(IoErrorOrigin::ReadingObject(p), e)
+    pub fn reading<'a>(p: &'a Path) -> impl FnOnce(std::io::Error) -> CommandError + 'a {
+        |e| CommandError::IoError(IoErrorOrigin::ReadingObject(p.to_path_buf()), e)
     }
-
-    pub fn writing(p: PathBuf) -> impl FnOnce(std::io::Error) -> CommandError {
-        |e| CommandError::IoError(IoErrorOrigin::WritingObject(p), e)
+    pub fn writing<'a>(p: &'a Path) -> impl FnOnce(std::io::Error) -> CommandError + 'a {
+        |e| CommandError::IoError(IoErrorOrigin::WritingObject(p.to_path_buf()), e)
     }
-    pub fn renaming(p: PathBuf, p2: PathBuf) -> impl FnOnce(std::io::Error) -> CommandError {
-        |e| CommandError::IoError(IoErrorOrigin::RenamingObject(p, p2), e)
+    pub fn renaming<'a>(
+        p: &'a Path,
+        p2: &'a Path,
+    ) -> impl FnOnce(std::io::Error) -> CommandError + 'a {
+        move |e| {
+            CommandError::IoError(
+                IoErrorOrigin::RenamingObject(p.to_path_buf(), p2.to_path_buf()),
+                e,
+            )
+        }
     }
 }

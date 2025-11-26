@@ -15,7 +15,7 @@ pub fn verify(cfg: &BLRSConfig, repos: Option<Vec<String>>) -> Result<(), CE> {
         .paths
         .library
         .read_dir()
-        .map_err(CE::reading(cfg.paths.library.clone()))?
+        .map_err(CE::reading(&cfg.paths.library))?
         .filter_map(|item| {
             let item = item.ok()?;
             item.file_type().ok()?.is_dir().then(|| item.path())
@@ -34,7 +34,7 @@ pub fn verify(cfg: &BLRSConfig, repos: Option<Vec<String>>) -> Result<(), CE> {
 
     for folder in folders {
         let _: Vec<_> = folder
-            .read_dir().map_err(CE::reading(folder))?
+            .read_dir().map_err(CE::reading(&folder))?
             .filter_map(|build_folder| {
                 let build_folder = build_folder.ok()?;
                 let path = build_folder.path();

@@ -1,15 +1,17 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 
 use blrs::build_targets::get_target_setup;
 use blrs::repos::{BuildVariant, Variants};
 use blrs::search::VersionSearchQuery;
 use blrs::{BasicBuildInfo, RemoteBuild};
 
-type RepoNickname = String;
+// type RepoNickname = String;
 
-pub fn get_choice_map<B>(matches: &[(B, RepoNickname)]) -> HashMap<String, &B>
+pub fn get_choice_map<Binfo, RepoNick>(matches: &[(Binfo, RepoNick)]) -> HashMap<String, &Binfo>
 where
-    B: AsRef<BasicBuildInfo>,
+    Binfo: AsRef<BasicBuildInfo>,
+    RepoNick: Display,
 {
     let mut x: Vec<_> = matches
         .iter()
@@ -43,9 +45,10 @@ where
 }
 
 // If necessary, prompt the user to select which build to download
-pub fn resolve_match<'a, B>(matches: &'a [(B, RepoNickname)], prompt: &str) -> Option<&'a B>
+pub fn resolve_match<'a, B, N>(matches: &'a [(B, N)], prompt: &str) -> Option<&'a B>
 where
     B: AsRef<BasicBuildInfo>,
+    N: Display,
 {
     if matches.len() == 1 {
         return Some(&matches[0].0);
@@ -53,11 +56,11 @@ where
 
     let choice_map = get_choice_map(matches);
 
-    let mut choices: Vec<_> = choice_map.keys().cloned().collect();
+    let mut choices: Vec<_> = choice_map.keys().collect();
 
     // Sort the matches by the commit date, then the version
     choices.sort_by_cached_key(|b| {
-        let build = choice_map[b].as_ref();
+        let build = choice_map[*b].as_ref();
         build
     });
 
@@ -69,7 +72,7 @@ where
         .prompt();
 
     match inquiry {
-        Ok(s) => Some(choice_map[&s]),
+        Ok(s) => Some(choice_map[s]),
         _ => None,
     }
 }

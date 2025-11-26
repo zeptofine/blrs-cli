@@ -33,7 +33,7 @@ pub fn run(
         RunCommand::Build { build, args } => match build {
             Some(bof) => match VersionSearchQuery::try_from(bof.as_str()) {
                 Ok(q) => (None, Some(q), Some(args)),
-                Err(e) => return Err(CommandError::CouldNotParseQuery(bof.clone(), e)),
+                Err(e) => return Err(CommandError::CouldNotParseQuery(bof, e)),
             },
             None => return Err(CommandError::NotEnoughInput),
         },
@@ -79,20 +79,12 @@ fn select_build(
     query: &VersionSearchQuery,
 ) -> Result<blrs::LocalBuild, CommandError> {
     // Get repos with installed builds
-    let builds = read_repos(&cfg.repos, &cfg.paths, false)
+    let repos: Vec<_> = read_repos(&cfg.repos, &cfg.paths, false)
         .map_err(|e| CommandError::IoError(IoErrorOrigin::ReadingRepos, e))?
         .into_iter()
         .filter_map(|r| match r {
-            RepoEntry::Registered(
-                BuildRepo {
-                    repo_id: _,
-                    url: _,
-                    nickname,
-                    repo_type: _,
-                },
-                vec,
-            )
-            | RepoEntry::Unknown(nickname, vec) => {
+            RepoEntry::Registered(BuildRepo { ref nickname, .. }, vec)
+            | RepoEntry::Unknown(ref nickname, vec) => {
                 let local_builds = vec
                     .into_iter()
                     .filter_map(|entry| match entry {
@@ -101,10 +93,14 @@ fn select_build(
                     })
                     .collect::<Vec<_>>();
 
-                (!local_builds.is_empty()).then_some((local_builds, nickname))
+                (!local_builds.is_empty()).then_some((local_builds, nickname.clone()))
             }
             RepoEntry::Error(_, _) => None,
         })
+        .collect();
+
+    let builds = repos
+        .into_iter()
         .flat_map(|(builds, nick)| builds.into_iter().map(move |b| (b, nick.clone())))
         .collect::<Vec<_>>();
 

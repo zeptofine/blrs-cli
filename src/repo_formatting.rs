@@ -121,7 +121,7 @@ impl Display for BuildEntryTreeConstructor<'_> {
 }
 
 #[derive(Debug)]
-pub struct RepoEntryTreeConstructor<'a>(pub &'a RepoEntry);
+pub struct RepoEntryTreeConstructor<'a>(pub &'a RepoEntry<'a>);
 impl RepoEntryTreeConstructor<'_> {
     pub fn to_tree(&self, show_variants: bool) -> tt::Tree<String> {
         let s = self.to_string();

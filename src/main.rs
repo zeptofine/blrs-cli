@@ -20,7 +20,11 @@ fn main() -> Result<(), std::io::Error> {
     #[cfg(target_os = "windows")]
     let _ = ansi_term::enable_ansi_support();
 
-    env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
+    env_logger::builder()
+        .parse_default_env()
+        .format_timestamp_nanos()
+        .init();
+    // env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
 
     let cli = Cli::parse();
 

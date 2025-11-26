@@ -17,11 +17,13 @@ pub fn remove_builds(
 ) -> Result<(), CE> {
     std::fs::create_dir_all(&cfg.paths.library)
         .inspect_err(|e| error!("Failed to create library path: {:?}", e))
-        .map_err(CE::writing(cfg.paths.library.clone()))?;
+        .map_err(CE::writing(&cfg.paths.library))?;
 
-    let local_builds: Vec<_> = read_repos(&cfg.repos, &cfg.paths, false)
-        .map_err(|e| CE::IoError(crate::errs::IoErrorOrigin::ReadingRepos, e))?
-        .into_iter()
+    let repos = read_repos(&cfg.repos, &cfg.paths, false)
+        .map_err(|e| CE::IoError(crate::errs::IoErrorOrigin::ReadingRepos, e))?;
+
+    let local_builds: Vec<_> = repos
+        .iter()
         .filter_map(|r| match r {
             blrs::repos::RepoEntry::Registered(
                 BuildRepo {
@@ -33,8 +35,8 @@ pub fn remove_builds(
                 vec,
             )
             | blrs::repos::RepoEntry::Unknown(nickname, vec) => {
-                let collect: Vec<blrs::LocalBuild> = vec
-                    .into_iter()
+                let collect: Vec<&blrs::LocalBuild> = vec
+                    .iter()
                     .filter_map(|entry| match entry {
                         blrs::repos::BuildEntry::Installed(_, local_build) => Some(local_build),
                         _ => None,
@@ -44,32 +46,32 @@ pub fn remove_builds(
             }
             blrs::repos::RepoEntry::Error(_, _) => None,
         })
-        .flat_map(|v| v.0.into_iter().map(move |b| (b, v.1.clone())))
+        .flat_map(|v| v.0.into_iter().map(move |b| (b, v.1.as_str())))
         .collect();
 
-    let matched_builds: Vec<(LocalBuild, _)> = {
+    let matched_builds: Vec<(&LocalBuild, _)> = {
         let matcher = BInfoMatcher::new(&local_builds);
         queries
             .into_iter()
             .flat_map(|query| matcher.find_all(&query))
-            .cloned()
+            .map(|x| (x.0, x.1.to_string()))
             .collect()
     };
 
-    let choice_map: HashMap<String, &LocalBuild> = get_choice_map(&matched_builds);
+    let choice_map: HashMap<String, _> = get_choice_map(&matched_builds);
 
     println!["{:#?}", choice_map];
 
-    let inquiry = inquire::MultiSelect::new(
-        "Choose which builds you want to uninstall",
-        choice_map.keys().cloned().collect(),
-    );
+    let mut choices: Vec<_> = choice_map.keys().collect();
+    choices.sort_by_cached_key(|b| &choice_map[*b].info.basic);
+
+    let inquiry = inquire::MultiSelect::new("Choose which builds you want to uninstall", choices);
 
     match inquiry.prompt() {
         Ok(v) => {
             let chosen_builds: Vec<_> = v
                 .into_iter()
-                .map(|choice| choice_map.get(&choice).unwrap())
+                .map(|choice| choice_map.get(choice).unwrap())
                 .collect();
 
             if no_trash {

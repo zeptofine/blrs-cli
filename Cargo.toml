@@ -17,8 +17,8 @@ env_logger = "0.11.5"
 figment = "0.10.19"
 flate2 = "1.0.34"
 futures = "0.3.31"
-indicatif = { version = "0.17.8", features = ["rayon", "tokio", "futures"] }
-inquire = "0.7.5"
+indicatif = { version = "0.18", features = ["rayon", "tokio", "futures"] }
+inquire = "0.9.1"
 log = "0.4.22"
 reqwest = "0.12.7"
 semver = "1.0.23"
@@ -28,11 +28,11 @@ tar = "0.4.42"
 termtree = "0.5.1"
 thiserror = "2.0.11"
 tokio = { version = "1.40.0", features = ["full"] }
-toml = "0.8.19"
+toml = "0.9.8"
 trash = "5.1.1"
 uuid = { version = "1.10.0", features = ["v4", "fast-rng"] }
 xz = "0.1.0"
-zip = "2.3.0"
+zip = "6.0.0"
 
 [profile.release]
 lto = "fat"

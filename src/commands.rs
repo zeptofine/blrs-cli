@@ -221,30 +221,20 @@ impl Command {
 
 fn strings_to_queries(queries: Vec<String>) -> Result<Vec<VersionSearchQuery>, CommandError> {
     // parse the query into an actual query
-    let queries: Vec<(String, Result<_, _>)> = queries
+    let queries: Vec<VersionSearchQuery> = queries
         .into_iter()
         .map(|s| {
-            let try_from = VersionSearchQuery::try_from(s.as_str());
-            (s, try_from)
+            let vop = VersionSearchQuery::try_from(s.as_str());
+            debug!["{:?}", vop];
+            // check if a query failed to parse
+            vop.map_err(|e| CommandError::CouldNotParseQuery(s.clone(), e.clone()))
         })
-        .collect();
+        .collect::<Result<Vec<VersionSearchQuery>, CommandError>>()?;
 
-    // Any of the queries failed to parse
-    if let Some((s, Err(e))) = queries.iter().find(|(_, v)| v.is_err()) {
-        return Err(CommandError::CouldNotParseQuery(s.clone(), e.clone()));
-    }
-    // The query list is empty
+    // // The query list is empty
     if queries.is_empty() {
         return Err(CommandError::MissingQuery);
     }
-
-    let queries: Vec<VersionSearchQuery> = queries
-        .into_iter()
-        .map(|(_, o)| {
-            debug!["{:?}", o];
-            o.unwrap()
-        })
-        .collect();
 
     Ok(queries)
 }

@@ -37,7 +37,7 @@ pub async fn pull_builds(
 ) -> Result<(), CE> {
     std::fs::create_dir_all(&cfg.paths.library)
         .inspect_err(|e| error!("Failed to create library path: {:?}", e))
-        .map_err(CE::writing(cfg.paths.library.clone()))?;
+        .map_err(CE::writing(&cfg.paths.library))?;
 
     let repos: Vec<_> = read_repos(&cfg.repos, &cfg.paths, false)
         .map_err(|e| CE::IoError(IoErrorOrigin::ReadingRepos, e))?
@@ -60,58 +60,63 @@ pub async fn pull_builds(
         })
         .collect();
 
-    let mut map = build_map(&repos, all_platforms);
+    let map = build_map(&repos, all_platforms);
 
-    let builds: Vec<(BasicBuildInfo, String)> = map
+    let versions: Vec<(&BasicBuildInfo, &str)> = map
         .iter()
-        .map(|(b, (_, r))| (b.clone(), r.nickname.clone()))
+        .map(|(b, (r, _))| (b, r.nickname.as_str()))
         .collect();
-
-    let matcher = BInfoMatcher::new(&builds);
-    let version_matches: Vec<(&VersionSearchQuery, Vec<(BasicBuildInfo, String)>)> = {
-        queries
-            .iter()
-            .map(|q| (q, matcher.find_all(q).into_iter().cloned().collect()))
-            .collect()
-    };
+    let matcher = BInfoMatcher::new(&versions);
+    let version_matches: Vec<(&VersionSearchQuery, Vec<(&BasicBuildInfo, &str)>)> = queries
+        .iter()
+        .map(|query| {
+            (
+                query,
+                matcher.find_all(query).into_iter().cloned().collect(),
+            )
+        })
+        .collect();
 
     // Check if any of the queries have no matches
-    let empty_matches: Vec<_> = version_matches
-        .iter()
-        .filter_map(|(q, v)| v.is_empty().then_some(format!["{q}"]))
-        .collect();
-    if !empty_matches.is_empty() {
-        return Err(CE::QueryResultEmpty(empty_matches.join(", ")));
+    {
+        let empty_matches: Vec<_> = version_matches
+            .iter()
+            .filter_map(|(q, v)| v.is_empty().then_some(format!["{q}"]))
+            .collect();
+        if !empty_matches.is_empty() {
+            return Err(CE::QueryResultEmpty(empty_matches.join(", ")));
+        }
     }
 
     // Get builds selected to download
-    let choices = version_matches
+    let mut dl_map = build_map(&repos, all_platforms);
+
+    let choices: Vec<_> = version_matches
         .into_iter()
         // Check if any of the queries had multiple matches. If so, perform conflict resolution
-        .filter_map(|(q, binfos)| {
+        .filter_map(|(query, matches)| {
             resolve_match(
-                &binfos.into_iter().collect::<Vec<_>>(),
-                &format!["Multiple matches for query {q}! select a build to download"],
+                &matches,
+                &format!["Multiple matches for query {query}! select a build to download"],
             )
             .cloned()
         })
         // Get variants of the chosen builds
-        .map(|info: BasicBuildInfo| {
-            let remove = map.remove(&info).unwrap();
-
+        .map(|info| {
+            let build = dl_map.remove(info).unwrap();
             info![
                 "Selected build {}/{} for installation",
-                remove.1.nickname, info.ver
+                build.0.nickname, info.ver
             ];
-
-            remove
+            build
         })
         // Check if the variants were larger than 1. If so, perform conflict resolution
-        .filter_map(|(variants, repo): (Variants<_>, &BuildRepo)| {
-            resolve_variant(variants, all_platforms).map(|build| (build, repo))
-        });
+        .filter_map(|(repo, variants): (_, _)| {
+            resolve_variant(variants, all_platforms).map(|build| (repo, build))
+        })
+        .collect();
 
-    // ? Progress bar styling
+    // // ? Progress bar styling
     let pb = MultiProgress::new();
     let template = "{spinner:.green} [{elapsed_precise} (ETA {eta})] [{bar:40.cyan/red}] {bytes}/{total_bytes} {msg:.green}";
     let pbstyle = ProgressStyle::with_template(template)
@@ -124,21 +129,21 @@ pub async fn pull_builds(
         )
         .progress_chars("#|-");
 
-    // Setup Ctrl+C handler, if possible
+    // // Setup Ctrl+C handler, if possible
     let _ = ctrlc::set_handler(|| {
         CANCELLED.store(true, Ordering::Release);
     });
 
     let setups: Vec<_> = choices
         .into_iter()
-        .map(|(remote_build, repo)| {
+        .map(|(repo, remote_build)| {
             let url = remote_build.url();
-            let extension = remote_build.file_extension.clone().unwrap_or_default();
+            let extension = remote_build.file_extension.unwrap_or_default();
             let filename = PathBuf::from(url.path()).file_name().map_or_else(
                 || {
                     // Fallback to a generated name
                     PathBuf::from(Uuid::new_v4().to_string())
-                        .with_extension(extension.clone())
+                        .with_extension(&extension)
                         .as_os_str()
                         .to_os_string()
                 },
@@ -147,7 +152,7 @@ pub async fn pull_builds(
 
             let repo_path = cfg.paths.path_to_repo(repo);
 
-            let completed_filepath = repo_path.join(&filename);
+            let completed_filepath = repo_path.join(filename);
             let temporary_filepath = completed_filepath.with_extension(extension + ".part");
             let destination = repo_path.join(remote_build.basic.version().to_string());
 
@@ -184,22 +189,22 @@ pub async fn pull_builds(
     Ok(())
 }
 
-fn build_map(
-    repos: &[(BuildRepo, Vec<Variants<RemoteBuild>>)],
+fn build_map<'a>(
+    repos: &[(&'a BuildRepo, Vec<Variants<RemoteBuild>>)],
     all_platforms: bool,
-) -> HashMap<BasicBuildInfo, (Variants<RemoteBuild>, &BuildRepo)> {
+) -> HashMap<BasicBuildInfo, (&'a BuildRepo, Variants<RemoteBuild>)> {
     let mut m = HashMap::with_capacity(repos.len());
     repos
         .iter()
         .flat_map(|(r, vec)| {
             vec.iter()
-                .map(move |variants| (variants.basic.clone(), (variants, r)))
+                .map(move |variants| (variants.basic.clone(), (variants, *r)))
         })
         .for_each(|(info, (variants, r))| match m.remove(&info) {
             None => {
-                m.insert(info, (variants.clone(), r));
+                m.insert(info, (r, variants.clone()));
             }
-            Some((mut var, ref mut repos)) => {
+            Some((ref mut repos, mut var)) => {
                 var.v.extend(variants.v.clone());
                 *repos = r;
             }
@@ -211,11 +216,11 @@ fn build_map(
 
         let h: HashMap<_, _> = m
             .into_iter()
-            .filter_map(|(key, (variants, repos))| {
+            .filter_map(|(key, (repo, variants))| {
                 let filtered = variants.filter_target(target);
                 match filtered.v.len() {
                     0 => None,
-                    _ => Some((key, (filtered, repos))),
+                    _ => Some((key, (repo, filtered))),
                 }
             })
             .collect();
@@ -255,7 +260,7 @@ async fn process_build(
         ));
     }
 
-    ppb.set_message("Generating the build info");
+    ppb.set_message("Generating build info");
     ppb.set_position(0);
     ppb.set_length(1);
 
@@ -270,14 +275,16 @@ async fn process_build(
         },
     };
 
-    lb.write().map_err(CE::writing(destination.clone()))?;
+    lb.write().map_err(CE::writing(&destination))?;
 
     // Delete archive file
 
     ppb.set_message("Deleting temp file");
     if trash::delete(&completed_filepath).is_err() {
-        std::fs::remove_file(completed_filepath).map_err(CE::writing(destination))?;
+        std::fs::remove_file(completed_filepath).map_err(CE::writing(&destination))?;
     }
+
+    ppb.set_message("Done");
 
     ppb.finish();
 
@@ -402,7 +409,7 @@ where
                         async_std::fs::create_dir_all(parent_path)
                             .await
                             .map_err(CE::writing(parent_path.into()))?;
-                        entry.unpack(&pth).map_err(CE::writing(pth))?;
+                        entry.unpack(&pth).map_err(CE::writing(&pth))?;
 
                         ppb.inc(unpacked_size);
                     }
@@ -425,9 +432,7 @@ where
             let mut archive =
                 ZipArchive::new(File::open(filepath).map_err(CE::reading(filepath.into()))?)
                     .map_err(|e| match e {
-                        zip::result::ZipError::Io(error) => {
-                            CE::reading(filepath.to_path_buf())(error)
-                        }
+                        zip::result::ZipError::Io(error) => CE::reading(filepath)(error),
                         zip::result::ZipError::InvalidArchive(e) => {
                             CE::BrokenArchive(filepath.to_path_buf(), e.to_string())
                         }
@@ -459,15 +464,15 @@ where
                 if file.is_dir() {
                     async_std::fs::create_dir_all(&pth)
                         .await
-                        .map_err(CE::writing(pth.clone()))?;
+                        .map_err(CE::writing(&pth))?;
                 } else {
                     {
                         let mut extracted_file =
-                            std::fs::File::create(&pth).map_err(CE::writing(pth.clone()))?;
+                            std::fs::File::create(&pth).map_err(CE::writing(&pth))?;
 
                         let mut v = Vec::with_capacity(file.size() as usize);
-                        file.read_to_end(&mut v).map_err(CE::writing(pth.clone()))?;
-                        extracted_file.write_all(&v).map_err(CE::writing(pth))?;
+                        file.read_to_end(&mut v).map_err(CE::writing(&pth))?;
+                        extracted_file.write_all(&v).map_err(CE::writing(&pth))?;
                     }
                 }
 

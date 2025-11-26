@@ -19,7 +19,7 @@ pub async fn fetch(
     parallel: bool,
     ignore_errors: bool,
 ) -> Result<ConfigTask, std::io::Error> {
-    let repos_folder = &cfg.paths.remote_repos.clone();
+    let repos_folder = &cfg.paths.remote_repos;
     // Ensure the repos folder exists
     let _ = std::fs::create_dir_all(repos_folder);
 
@@ -98,10 +98,7 @@ async fn process_result_(
 
             match e {
                 FetchError::IoError(error) => Err(error),
-                e => Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!["Error: {e:?}"],
-                )),
+                e => Err(std::io::Error::other(format!["Error: {e:?}"])),
             }
         }
     }
