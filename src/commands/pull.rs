@@ -300,11 +300,11 @@ async fn download_file(
 ) -> Result<(), CE> {
     // Make sure the temporary filepath exists
     std::fs::create_dir_all(temporary_filepath.parent().unwrap())
-        .map_err(CE::writing(temporary_filepath.parent().unwrap().into()))?;
+        .map_err(CE::writing(temporary_filepath.parent().unwrap()))?;
 
     let mut file = async_std::fs::File::create(&temporary_filepath)
         .await
-        .map_err(CE::writing(temporary_filepath.into()))?;
+        .map_err(CE::writing(temporary_filepath))?;
 
     let mut state = FetchStreamerState::new(client, url);
 
@@ -331,7 +331,7 @@ async fn download_file(
 
                 file.write_all(last_chunk)
                     .await
-                    .map_err(CE::writing(temporary_filepath.into()))?;
+                    .map_err(CE::writing(temporary_filepath))?;
             }
             FetchStreamerState::Finished { response } => {
                 if !response.status().is_success() {
@@ -340,17 +340,14 @@ async fn download_file(
 
                 file.flush()
                     .await
-                    .map_err(CE::writing(temporary_filepath.into()))?;
+                    .map_err(CE::writing(temporary_filepath))?;
                 file.close()
                     .await
-                    .map_err(CE::writing(temporary_filepath.into()))?;
+                    .map_err(CE::writing(temporary_filepath))?;
 
                 async_std::fs::rename(&temporary_filepath, &completed_filepath)
                     .await
-                    .map_err(CE::renaming(
-                        temporary_filepath.into(),
-                        completed_filepath.into(),
-                    ))?;
+                    .map_err(CE::renaming(temporary_filepath, completed_filepath))?;
 
                 break;
             }
@@ -387,10 +384,10 @@ where
             ppb.set_length(total_size);
             ppb.set_position(0);
 
-            let file = XzDecoder::new(File::open(filepath).map_err(CE::reading(filepath.into()))?);
+            let file = XzDecoder::new(File::open(filepath).map_err(CE::reading(filepath))?);
             let mut archive = Archive::new(file);
 
-            for entry in archive.entries().map_err(CE::reading(filepath.into()))? {
+            for entry in archive.entries().map_err(CE::reading(filepath))? {
                 match entry {
                     Ok(mut entry) => {
                         let unpacked_size = entry.size();
@@ -408,7 +405,7 @@ where
                         let parent_path = pth.parent().unwrap();
                         async_std::fs::create_dir_all(parent_path)
                             .await
-                            .map_err(CE::writing(parent_path.into()))?;
+                            .map_err(CE::writing(parent_path))?;
                         entry.unpack(&pth).map_err(CE::writing(&pth))?;
 
                         ppb.inc(unpacked_size);
@@ -429,20 +426,19 @@ where
             Ok(true)
         }
         "zip" => {
-            let mut archive =
-                ZipArchive::new(File::open(filepath).map_err(CE::reading(filepath.into()))?)
-                    .map_err(|e| match e {
-                        zip::result::ZipError::Io(error) => CE::reading(filepath)(error),
-                        zip::result::ZipError::InvalidArchive(e) => {
-                            CE::BrokenArchive(filepath.to_path_buf(), e.to_string())
-                        }
-                        zip::result::ZipError::UnsupportedArchive(e) => {
-                            CE::BrokenArchive(filepath.to_path_buf(), e.to_string())
-                        }
-                        zip::result::ZipError::FileNotFound => todo!(),
-                        zip::result::ZipError::InvalidPassword => todo!(),
-                        _ => todo!(),
-                    })?;
+            let mut archive = ZipArchive::new(File::open(filepath).map_err(CE::reading(filepath))?)
+                .map_err(|e| match e {
+                    zip::result::ZipError::Io(error) => CE::reading(filepath)(error),
+                    zip::result::ZipError::InvalidArchive(e) => {
+                        CE::BrokenArchive(filepath.to_path_buf(), e.to_string())
+                    }
+                    zip::result::ZipError::UnsupportedArchive(e) => {
+                        CE::BrokenArchive(filepath.to_path_buf(), e.to_string())
+                    }
+                    zip::result::ZipError::FileNotFound => todo!(),
+                    zip::result::ZipError::InvalidPassword => todo!(),
+                    _ => todo!(),
+                })?;
 
             let total_size = archive
                 .decompressed_size()

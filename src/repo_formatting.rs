@@ -1,10 +1,11 @@
 use std::{
     fmt::Display,
     fs,
+    sync::LazyLock,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use ansi_term as at;
+use ansi_term::{self as at};
 use blrs::{
     fetching::build_repository::BuildRepo,
     repos::{BuildEntry, BuildVariant, RepoEntry},
@@ -105,7 +106,7 @@ impl Display for BuildEntryTreeConstructor<'_> {
                     at::Color::White
                         .dimmed()
                         .paint(format!["{}", local_build.info.basic.commit_dt]),
-                    at::Color::Cyan.paint("(Installed)")
+                    *INSTALLED_TEXT
                 ]
             }
             BuildEntry::Errored(error, path_buf) => write![
@@ -119,6 +120,15 @@ impl Display for BuildEntryTreeConstructor<'_> {
         }
     }
 }
+
+static INSTALLED_TEXT: LazyLock<String> =
+    LazyLock::new(|| at::Color::Cyan.paint("(Installed)").to_string());
+static UNKNOWN_TEXT: LazyLock<String> = LazyLock::new(|| {
+    ansi_term::Color::White
+        .dimmed()
+        .paint("(Unknown)")
+        .to_string()
+});
 
 #[derive(Debug)]
 pub struct RepoEntryTreeConstructor<'a>(pub &'a RepoEntry<'a>);
@@ -152,7 +162,7 @@ impl Display for RepoEntryTreeConstructor<'_> {
                 f,
                 "{} {} - {} builds",
                 at::Color::Yellow.paint(name),
-                ansi_term::Color::White.dimmed().paint("(Unknown)"),
+                *UNKNOWN_TEXT,
                 builds.len(),
             ],
             RepoEntry::Error(name, error) => write![

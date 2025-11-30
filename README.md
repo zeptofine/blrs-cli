@@ -1,31 +1,15 @@
 # blrs-cli
 
-#### `blrs-cli` is a command-line tool designed to simplify the management of multiple Blender builds. It allows you to easily download, install, and switch between various versions, making it ideal for artists who work with different project requirements or addon compatibilities.
+#### `blrs-cli` is a command-line tool designed to simplify the management of multiple Blender builds. It allows you to easily download, install, and switch between various versions, making it ideal for artists who work with different project requirements or addon compatibilities, or developers who want to test their addons on various blender builds.
 
 This was built as an alternative to the popular Blender-Launcher (and its successor Blender-Launcher-V2) which fulfills
 the same basic purpose without too many extra features, and with scriptability in mind.
 
-### Key Features:
 
-- **Download from multiple sources**: Access Blender builds directly from official repositories and community-maintained archives.
+- **Access Blender builds directly from official repositories and community-maintained archives.**
     - Currently, the only supported API is the official builder JSON api. More coming in the future for BForArtists and others!
-
-- **Version management**: Search for specific versions by name, release date, or other criteria.
-- **Simplified installation**: Automatically extract and organize downloaded builds within a dedicated library directory.
-- **Trashing & Removal**: Safely discard unwanted builds without manual intervention.
-
-### Benefits
-
-- **Enhanced organization**: Keep your Blender builds neatly organized and easily accessible.
-- **Simplified workflow**: Streamline your development process by effortlessly switching between versions for different projects.
-- **Scriptable**: Use shell and batch scripts as shortcuts to different versions.
-
-
-### Target Audience
-
-- **3D Artists**: Manage multiple Blender versions for diverse project needs.
-- **Developers**: Work with specific Blender releases for addon testing or compatibility checks.
-- Anyone who uses Blender regularly and values a streamlined workflow.
+- **Search for specific versions by name, release date, or other criteria.**
+- **Safely discard unwanted builds without manual intervention.**
 
 ## Installation
 If you have cargo installed:
@@ -162,7 +146,6 @@ License
 blrs-cli is licensed under the Apache 2.0 License. A full copy of the license is provided in [LICENSE](LICENSE).
 
 ```
-
    blrs-cli
 
    Copyright 2024 Erin MacDonald
