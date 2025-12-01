@@ -5,7 +5,7 @@
 This was built as an alternative to the popular Blender-Launcher (and its successor Blender-Launcher-V2) which fulfills
 the same basic purpose without too many extra features, and with scriptability in mind.
 
-I'll be honest, this isn't as user friendly as BLV2, but that wasn't the goal. I just wanted a small way to house packages. It essentially fulfills my own usecase and not much else..
+I'll be honest, this isn't as user friendly as BLV2, but that wasn't the goal. I just wanted a small way to house blender builds and update easily. It essentially fulfills my own usecase and not much else lol..
 
 
 - **Access Blender builds directly from official repositories and community-maintained archives.**
