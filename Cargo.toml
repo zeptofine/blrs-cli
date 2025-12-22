@@ -5,32 +5,32 @@ edition = "2021"
 
 [dependencies]
 ansi_term = "0.12.1"
-async-std = "1.13.0"
+async-std = "1.13.2"
 
 # blrs = { path = "../blrs", features = ["all"] }
 blrs = { features = ["all"], git = "https://github.com/zeptofine/blrs" }
 
-chrono = "0.4.38"
-clap = { version = "4.5.17", features = ["derive"] }
-ctrlc = "3.4.5"
-env_logger = "0.11.5"
+chrono = "0.4.42"
+clap = { version = "4.5.53", features = ["derive"] }
+ctrlc = "3.5.1"
+env_logger = "0.11.8"
 figment = "0.10.19"
-flate2 = "1.0.34"
+flate2 = "1.1.5"
 futures = "0.3.31"
 indicatif = { version = "0.18", features = ["rayon", "tokio", "futures"] }
 inquire = "0.9.1"
-log = "0.4.22"
-reqwest = "0.12.7"
-semver = "1.0.23"
-serde = { version = "1.0.210", features = ["derive"] }
-serde_json = "1.0.128"
-tar = "0.4.42"
+log = "0.4.29"
+reqwest = "0.12.26"
+semver = "1.0.27"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.146"
+tar = "0.4.44"
 termtree = "0.5.1"
-thiserror = "2.0.11"
-tokio = { version = "1.40.0", features = ["full"] }
-toml = "0.9.8"
-trash = "5.1.1"
-uuid = { version = "1.10.0", features = ["v4", "fast-rng"] }
+thiserror = "2.0.17"
+tokio = { version = "1.48.0", features = ["full"] }
+toml = "0.9.10"
+trash = "5.2.5"
+uuid = { version = "1.19.0", features = ["v4", "fast-rng"] }
 xz = "0.1.0"
 zip = "6.0.0"
 
